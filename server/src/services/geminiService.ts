@@ -92,6 +92,22 @@ function getMockFallback(prompt: string, fallbackType?: string): any {
   }
 
   if (fallbackType === "coach" || prompt.includes("coach") || prompt.includes("productivity coach")) {
+    if (prompt.includes("summary") || prompt.includes("recommendedActions")) {
+      const qMatch = prompt.match(/User Question: "(.*)"/);
+      const question = qMatch ? qMatch[1] : "What should I do now?";
+      return {
+        summary: `Assessment for: "${question}". Let's focus on completing your nearest pending task to clear up your afternoon schedule.`,
+        recommendedActions: [
+          "🎯 Complete research section for your main active goal",
+          "🔍 Verify layout options on mobile views",
+          "⚡ Set a 25-minute Pomodoro block to execute writing"
+        ],
+        estimatedTime: "1.5 hours",
+        priority: "High",
+        risks: "Potential bottleneck in layout animations if research is delayed.",
+        aiRecommendation: "Establish a clear, distraction-free environment. Turning off social notifications during this block will reduce cognitive load."
+      };
+    }
     return {
       message: "You have a two-hour free window before dinner. Completing your research task now will keep your overall project on schedule."
     };

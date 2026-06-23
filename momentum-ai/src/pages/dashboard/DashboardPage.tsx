@@ -13,7 +13,9 @@ import {
   PlusCircle, 
   BrainCircuit,
   Mic,
-  MicOff 
+  MicOff,
+  AlertTriangle,
+  Sparkles
 } from "lucide-react";
 import { useTasks } from "../../hooks/useTasks";
 import { useAuth } from "../../hooks/useAuth";
@@ -45,6 +47,13 @@ export default function DashboardPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [coachAdvice, setCoachAdvice] = useState("Analyzing your workload to provide coaching feedback...");
+
+  // AI Coach Assistant state
+  const [coachQuestion, setCoachQuestion] = useState("");
+  const [isCoachLoading, setIsCoachLoading] = useState(false);
+  const [structuredAdvice, setStructuredAdvice] = useState<any>(null);
+  const [coachError, setCoachError] = useState("");
+  const [isListeningCoach, setIsListeningCoach] = useState(false);
 
   const startVoiceInput = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -82,6 +91,42 @@ export default function DashboardPage() {
     recognition.start();
   };
 
+  const startVoiceInputCoach = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice recognition is not supported in this browser. Please try Chrome or Edge.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+      setIsListeningCoach(true);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      const cleanTranscript = transcript.endsWith(".") ? transcript.slice(0, -1) : transcript;
+      setCoachQuestion(cleanTranscript);
+      setIsListeningCoach(false);
+      handleAskCoach(cleanTranscript);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error:", event);
+      setIsListeningCoach(false);
+    };
+
+    recognition.onend = () => {
+      setIsListeningCoach(false);
+    };
+
+    recognition.start();
+  };
+
   // Subscribing to habits
   useEffect(() => {
     if (!user) return;
@@ -99,7 +144,7 @@ export default function DashboardPage() {
       const tasksSummary = pendingTasks.map(t => `${t.title} (${t.priority} priority)`).join(", ") || "No tasks scheduled.";
       const habitsSummary = habits.map(h => `${h.name} (${h.streak} day streak)`).join(", ") || "No habits logged.";
 
-      const response = await aiApi.coach(tasksSummary, habitsSummary, token);
+      const response = await aiApi.coach(tasksSummary, habitsSummary, undefined, token);
       if (response && response.message) {
         setCoachAdvice(response.message);
         return;
@@ -119,6 +164,37 @@ export default function DashboardPage() {
       } else {
         setCoachAdvice(`You have ${pending.length} tasks waiting. Select the quickest one, set a 25-minute Pomodoro, and cross it off.`);
       }
+    }
+  };
+
+  const handleAskCoach = async (questionText: string) => {
+    if (!questionText.trim() || !user) return;
+    setIsCoachLoading(true);
+    setCoachError("");
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const pendingTasks = tasks.filter(t => t.status !== "done");
+      const tasksSummary = pendingTasks.map(t => `${t.title} (${t.priority} priority)`).join(", ") || "No tasks scheduled.";
+      const habitsSummary = habits.map(h => `${h.name} (${h.streak} day streak)`).join(", ") || "No habits logged.";
+
+      const response = await aiApi.coach(tasksSummary, habitsSummary, questionText, token);
+      if (response && (response.summary || response.recommendedActions)) {
+        setStructuredAdvice(response);
+      } else {
+        setStructuredAdvice({
+          summary: response.message || "Advice processed successfully.",
+          recommendedActions: ["Focus on your high-priority items first."],
+          estimatedTime: "Varies",
+          priority: "Medium",
+          risks: "None detected.",
+          aiRecommendation: "Keep taking active daily progress blocks to stay on track."
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      setCoachError("Could not retrieve coach recommendations. Please check connection.");
+    } finally {
+      setIsCoachLoading(false);
     }
   };
 
@@ -366,6 +442,193 @@ export default function DashboardPage() {
                 </button>
               </div>
             </form>
+          </div>
+
+          {/* AI Coach Assistant Card */}
+          <div className="glass-card p-5 rounded-3xl border border-white/40 dark:border-slate-850/60 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-md font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <BrainCircuit className="w-4 h-4 text-accent-600" /> AI Coach Assistant
+              </h2>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent-100 dark:bg-accent-950 text-accent-700 dark:text-accent-400 font-semibold uppercase tracking-wider">
+                Productivity Advisor
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Get structured prioritization, actions, and deadline risk warnings from your time-management coach.
+            </p>
+
+            {/* Quick Suggestion Chips */}
+            <div className="flex flex-wrap gap-2">
+              {[
+                "What should I do now?",
+                "Can I finish everything today?",
+                "How can I complete this project faster?",
+                "What is blocking my progress?"
+              ].map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  disabled={isCoachLoading}
+                  onClick={() => {
+                    setCoachQuestion(chip);
+                    handleAskCoach(chip);
+                  }}
+                  className="px-3 py-1.5 rounded-full text-xs font-medium border border-slate-200 dark:border-slate-850 bg-white/40 dark:bg-slate-900/40 text-slate-600 dark:text-slate-350 hover:bg-accent-50 dark:hover:bg-slate-900 hover:border-accent-500 hover:text-accent-700 transition-all"
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+
+            {/* Coach Input form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAskCoach(coachQuestion);
+              }}
+              className="flex gap-2 items-center"
+            >
+              <div className="relative flex-1 flex items-center">
+                <input
+                  type="text"
+                  value={coachQuestion}
+                  onChange={(e) => setCoachQuestion(e.target.value)}
+                  placeholder="Ask your coach anything about your study goals or workload..."
+                  className="w-full bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-850 rounded-xl pl-3.5 pr-10 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 text-slate-900 dark:text-white"
+                />
+                <button
+                  type="button"
+                  onClick={startVoiceInputCoach}
+                  className={`absolute right-2 p-1.5 rounded-lg transition-all ${
+                    isListeningCoach
+                      ? "text-red-500 bg-red-50 dark:bg-red-950/30 animate-pulse"
+                      : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  }`}
+                  title="Speak Question"
+                >
+                  {isListeningCoach ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </button>
+              </div>
+              <button
+                type="submit"
+                disabled={isCoachLoading || !coachQuestion.trim()}
+                className="bg-accent-600 hover:bg-accent-700 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-xl text-sm transition-all flex items-center justify-center gap-1.5"
+              >
+                {isCoachLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" /> Ask
+                  </>
+                )}
+              </button>
+            </form>
+
+            {coachError && (
+              <div className="p-3 bg-red-500/10 text-red-600 dark:text-red-400 text-xs rounded-xl border border-red-500/20 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                {coachError}
+              </div>
+            )}
+
+            {/* Coach Loading Skeleton */}
+            {isCoachLoading && (
+              <div className="space-y-3 p-4 bg-slate-100/50 dark:bg-slate-900/40 rounded-2xl border border-slate-200/20 dark:border-slate-850/20 animate-pulse">
+                <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-1/3" />
+                <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-full" />
+                <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-5/6" />
+                <div className="flex gap-2 pt-2">
+                  <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-20" />
+                  <div className="h-6 bg-slate-200 dark:bg-slate-800 rounded w-24" />
+                </div>
+              </div>
+            )}
+
+            {/* Coach Response Structured Box */}
+            {structuredAdvice && !isCoachLoading && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 bg-slate-100/50 dark:bg-slate-900/40 rounded-2xl border border-slate-200/20 dark:border-slate-850/20 space-y-4"
+              >
+                {/* Header: Priority & Time */}
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/30 dark:border-slate-850/30 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Priority:</span>
+                    <span
+                      className={`text-xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                        structuredAdvice.priority === "High"
+                          ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                          : structuredAdvice.priority === "Medium"
+                          ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                          : "bg-slate-500/10 text-slate-600 dark:text-slate-400"
+                      }`}
+                    >
+                      {structuredAdvice.priority || "Medium"}
+                    </span>
+                  </div>
+                  {structuredAdvice.estimatedTime && (
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                      <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                      <span className="font-semibold">{structuredAdvice.estimatedTime}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Summary */}
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Summary</h4>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                    {structuredAdvice.summary}
+                  </p>
+                </div>
+
+                {/* Actions */}
+                {structuredAdvice.recommendedActions && structuredAdvice.recommendedActions.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Recommended Actions</h4>
+                    <div className="space-y-1.5">
+                      {structuredAdvice.recommendedActions.map((action: string, idx: number) => (
+                        <div key={idx} className="flex items-start gap-2.5">
+                          <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5 stroke-[3]" />
+                          <span className="text-xs sm:text-sm text-slate-700 dark:text-slate-350">{action}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Risks banner */}
+                {structuredAdvice.risks && (
+                  <div className="p-3 bg-amber-500/5 dark:bg-amber-950/20 border border-amber-500/20 rounded-xl space-y-1">
+                    <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-450 text-xs font-bold uppercase tracking-wider">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      Potential Risks
+                    </div>
+                    <p className="text-xs text-amber-700 dark:text-amber-450 leading-normal">
+                      {structuredAdvice.risks}
+                    </p>
+                  </div>
+                )}
+
+                {/* Coach strategy recommendation bubble */}
+                {structuredAdvice.aiRecommendation && (
+                  <div className="flex items-start gap-3 bg-gradient-to-r from-accent-500/10 to-indigo-500/5 dark:from-accent-950/20 dark:to-slate-900/10 p-3.5 rounded-xl border border-accent-500/10 dark:border-accent-950/30">
+                    <span className="p-1.5 rounded-lg bg-accent-100 dark:bg-accent-950 text-accent-700 dark:text-accent-400 shrink-0 mt-0.5">
+                      <Sparkles className="w-3.5 h-3.5 fill-accent-600" />
+                    </span>
+                    <div>
+                      <h5 className="text-[10px] font-bold text-accent-700 dark:text-accent-400 uppercase tracking-wider">Coach Recommendation</h5>
+                      <p className="text-xs text-slate-700 dark:text-slate-300 mt-1 italic font-medium leading-relaxed">
+                        "{structuredAdvice.aiRecommendation}"
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
           </div>
 
           {/* Task list container */}

@@ -26,10 +26,10 @@ export const aiApi = {
       body: JSON.stringify({ date, workHours, tasksSummary }),
       authToken: token,
     }),
-  coach: (tasksSummary: string, habitsSummary: string, token?: string) => 
+  coach: (tasksSummary: string, habitsSummary: string, question?: string, token?: string) => 
     apiClient<CoachResponse>("/api/ai/coach", { 
       method: "POST",
-      body: JSON.stringify({ tasksSummary, habitsSummary }),
+      body: JSON.stringify({ tasksSummary, habitsSummary, question }),
       authToken: token,
     }),
   weeklyReview: (weekSummary: string, token?: string) =>

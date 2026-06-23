@@ -23,7 +23,13 @@ export interface ScheduleResponse {
 }
 
 export interface CoachResponse {
-  message: string;
+  message?: string;
+  summary?: string;
+  recommendedActions?: string[];
+  estimatedTime?: string;
+  priority?: "High" | "Medium" | "Low";
+  risks?: string;
+  aiRecommendation?: string;
 }
 
 export interface WeeklyReviewResponse {

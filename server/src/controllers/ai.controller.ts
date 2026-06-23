@@ -4,6 +4,7 @@ import { taskBreakdownPrompt } from "../prompts/taskBreakdown.prompt";
 import { prioritizationPrompt } from "../prompts/prioritization.prompt";
 import { schedulingPrompt } from "../prompts/scheduling.prompt";
 import { weeklyReviewPrompt } from "../prompts/weeklyReview.prompt";
+import { coachPrompt, defaultCoachPrompt } from "../prompts/coach.prompt";
 
 // POST /api/ai/breakdown
 // Expects: { title: string }
@@ -57,19 +58,15 @@ export async function handleSchedule(req: Request, res: Response, next: NextFunc
 }
 
 // POST /api/ai/coach
-// Expects: { tasksSummary: string, habitsSummary?: string }
+// Expects: { tasksSummary: string, habitsSummary?: string, question?: string }
 export async function handleCoach(req: Request, res: Response, next: NextFunction) {
-  const { tasksSummary, habitsSummary } = req.body;
+  const { tasksSummary, habitsSummary, question } = req.body;
   try {
-    const prompt = `You are an AI productivity coach. Give a short, single-sentence context-aware advice snippet (max 30 words) based on the user's workload.
-    
-    Workload: ${tasksSummary || "No tasks scheduled."}
-    Habits: ${habitsSummary || "No habits logged."}
-    
-    Respond in ONLY valid JSON:
-    { "message": "your advice string here" }`;
+    const prompt = question 
+      ? coachPrompt(question, tasksSummary || "No tasks scheduled.", habitsSummary || "No habits logged.")
+      : defaultCoachPrompt(tasksSummary || "No tasks scheduled.", habitsSummary || "No habits logged.");
 
-    const result = await generateJSON<{ message: string }>(prompt, "coach");
+    const result = await generateJSON<any>(prompt, "coach");
     res.json(result);
   } catch (error) {
     next(error);
