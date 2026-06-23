@@ -86,30 +86,29 @@ export default function TasksPage() {
       const response = await aiApi.breakdown(task.title, token);
       
       if (response && response.phases && response.phases.length > 0) {
-        let roadmapMarkdown = `# 🤖 AI Hackathon Execution Roadmap\n`;
-        roadmapMarkdown += `**Project:** ${response.projectName}\n\n`;
-        roadmapMarkdown += `## Breakdown\n\n`;
+        let roadmapMarkdown = `Project: ${response.projectName}\n\n`;
+        roadmapMarkdown += `### Breakdown\n\n`;
 
         const mappedSubtasks: any[] = [];
 
         response.phases.forEach((phase) => {
-          roadmapMarkdown += `### ${phase.phaseName}\n`;
+          roadmapMarkdown += `**${phase.phaseName}**\n\n`;
           phase.tasks.forEach((sub) => {
             const timeStr = sub.estimatedMinutes >= 60 
-              ? `${(sub.estimatedMinutes / 60).toFixed(1)}h` 
-              : `${sub.estimatedMinutes}m`;
+              ? `${(sub.estimatedMinutes / 60).toFixed(1)} hours` 
+              : `${sub.estimatedMinutes} minutes`;
             
-            roadmapMarkdown += `- **${sub.title}** (_${timeStr}_)\n`;
+            roadmapMarkdown += `* ${sub.title}\n`;
+            roadmapMarkdown += `* Estimated Time: ${timeStr}\n\n`;
             
             mappedSubtasks.push({
               id: Math.random().toString(36).substring(2, 9),
-              title: `[${phase.phaseName.replace(/[^\w\s\u00C0-\u017F]/g, "").trim()}] ${sub.title}`,
+              title: `[${phase.phaseName}] ${sub.title}`,
               estimatedMinutes: sub.estimatedMinutes || 30,
               difficulty: "medium" as const,
               done: false
             });
           });
-          roadmapMarkdown += `\n`;
         });
 
         await updateTaskDetails(task.id, {
@@ -130,14 +129,14 @@ export default function TasksPage() {
       projectName: task.title,
       phases: [
         {
-          phaseName: "🔍 Research",
+          phaseName: "Research",
           tasks: [
             { title: "Research specifications and frameworks requirements", estimatedMinutes: 45 },
             { title: "Define layout design mockups structures", estimatedMinutes: 60 }
           ]
         },
         {
-          phaseName: "💻 Frontend",
+          phaseName: "Frontend",
           tasks: [
             { title: "Build responsive pages shells layout", estimatedMinutes: 180 },
             { title: "Integrate routes validation and logic", estimatedMinutes: 120 }
@@ -146,24 +145,28 @@ export default function TasksPage() {
       ]
     };
 
-    let roadmapMarkdown = `# 🤖 AI Hackathon Execution Roadmap (Fallback)\n`;
-    roadmapMarkdown += `**Project:** ${mockResponse.projectName}\n\n`;
-    roadmapMarkdown += `## Breakdown\n\n`;
+    let roadmapMarkdown = `Project: ${mockResponse.projectName}\n\n`;
+    roadmapMarkdown += `### Breakdown\n\n`;
 
     const generated: any[] = [];
     mockResponse.phases.forEach((phase) => {
-      roadmapMarkdown += `### ${phase.phaseName}\n`;
+      roadmapMarkdown += `**${phase.phaseName}**\n\n`;
       phase.tasks.forEach((sub) => {
-        roadmapMarkdown += `- **${sub.title}** (_${sub.estimatedMinutes}m_)\n`;
+        const timeStr = sub.estimatedMinutes >= 60 
+          ? `${(sub.estimatedMinutes / 60).toFixed(1)} hours` 
+          : `${sub.estimatedMinutes} minutes`;
+        
+        roadmapMarkdown += `* ${sub.title}\n`;
+        roadmapMarkdown += `* Estimated Time: ${timeStr}\n\n`;
+        
         generated.push({
           id: Math.random().toString(36).substring(2, 9),
-          title: `[${phase.phaseName.replace(/[^\w\s\u00C0-\u017F]/g, "").trim()}] ${sub.title}`,
+          title: `[${phase.phaseName}] ${sub.title}`,
           estimatedMinutes: sub.estimatedMinutes,
           difficulty: "medium" as const,
           done: false
         });
       });
-      roadmapMarkdown += `\n`;
     });
 
     await updateTaskDetails(task.id, {

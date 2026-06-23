@@ -40,27 +40,27 @@ function getMockFallback(prompt: string, fallbackType?: string): any {
       projectName: taskTitle,
       phases: [
         {
-          phaseName: "🔍 Research",
+          phaseName: "Research",
           tasks: [
             { title: `Research guidelines for "${taskTitle}"`, estimatedMinutes: 45 },
             { title: "Analyze technical solution frameworks", estimatedMinutes: 75 }
           ]
         },
         {
-          phaseName: "💻 Frontend",
+          phaseName: "Frontend",
           tasks: [
             { title: "Scaffold responsive client pages", estimatedMinutes: 180 },
             { title: "Wired routes and layout components", estimatedMinutes: 120 }
           ]
         },
         {
-          phaseName: "🧪 Testing",
+          phaseName: "Testing",
           tasks: [
             { title: "Verify edge-cases and viewport styling", estimatedMinutes: 60 }
           ]
         },
         {
-          phaseName: "🚀 Deployment",
+          phaseName: "Deployment",
           tasks: [
             { title: "Deploy build bundle to static hosting", estimatedMinutes: 60 }
           ]
