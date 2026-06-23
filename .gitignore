@@ -1,0 +1,8 @@
+# Ignore node_modules, dist, env files, and logs globally
+**/node_modules
+**/dist
+**/.env
+.DS_Store
+Thumbs.db
+*.log
+.system_generated/
