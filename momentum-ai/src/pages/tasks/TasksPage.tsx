@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useTasks } from "../../hooks/useTasks";
 import type { Task, Priority, TaskStatus, Difficulty } from "../../types/task";
+import { aiApi } from "../../api/aiApi";
+import { auth } from "../../services/firebase";
 
 export default function TasksPage() {
   const { 
@@ -74,13 +76,38 @@ export default function TasksPage() {
     }
   };
 
-  const handleAiBreakdownMock = async (task: Task) => {
-    // If backend is active (Phase 5), this will call the backend API.
-    // For Phase 3, we mock it by adding beautiful subtasks in local state.
-    // This gives immediate visual feedback.
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const handleAiBreakdown = async (task: Task) => {
     if (!task) return;
-    
-    // Set loading indicator placeholder if desired
+    setAiLoading(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await aiApi.breakdown(task.title, token);
+      
+      if (response && response.subtasks && response.subtasks.length > 0) {
+        const mappedSubtasks = response.subtasks.map((sub) => ({
+          id: sub.id || Math.random().toString(36).substring(2, 9),
+          title: sub.title,
+          estimatedMinutes: sub.estimatedMinutes || 20,
+          difficulty: sub.difficulty || "medium",
+          done: false
+        }));
+
+        await updateTaskDetails(task.id, {
+          subtasks: [...task.subtasks, ...mappedSubtasks],
+          description: task.description 
+            ? `${task.description}\n\n🤖 [AI Coach]: Task structured into steps.` 
+            : "🤖 [AI Coach]: Task structured into steps."
+        });
+        setAiLoading(false);
+        return;
+      }
+    } catch (err) {
+      console.warn("AI breakdown failed, running local fallback: ", err);
+    }
+
+    // Fallback Mock Breakdown
     const mockBreakdowns = [
       { title: "🔍 Initial Research & Requirements gather", minutes: 30, diff: "easy" as const },
       { title: "🎨 Layout wireframe & design prototyping", minutes: 60, diff: "medium" as const },
@@ -93,7 +120,7 @@ export default function TasksPage() {
     
     const generated = mockBreakdowns.map((mock) => ({
       id: Math.random().toString(36).substring(2, 9),
-      title: `🤖 [AI] ${mock.title}`,
+      title: `🤖 [Fallback] ${mock.title}`,
       estimatedMinutes: mock.minutes,
       difficulty: mock.diff,
       done: false
@@ -101,8 +128,9 @@ export default function TasksPage() {
 
     await updateTaskDetails(task.id, {
       subtasks: [...currentSubtasks, ...generated],
-      description: task.description ? `${task.description}\n\n(Tasks expanded by AI Productivity Coach)` : "Tasks expanded by AI Productivity Coach"
+      description: task.description ? `${task.description}\n\n(Local fallback structured subtasks)` : "Local fallback structured subtasks"
     });
+    setAiLoading(false);
   };
 
   const selectedTask = tasks.find(t => t.id === selectedTaskId) || null;
@@ -374,10 +402,16 @@ export default function TasksPage() {
 
                   {/* AI Breakdown Magic Button */}
                   <button
-                    onClick={() => handleAiBreakdownMock(selectedTask)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-accent-600 to-indigo-600 hover:from-accent-700 hover:to-indigo-700 text-white font-semibold rounded-xl text-xs shadow-md transition-all"
+                    onClick={() => handleAiBreakdown(selectedTask)}
+                    disabled={aiLoading}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-accent-600 to-indigo-600 hover:from-accent-700 hover:to-indigo-700 disabled:opacity-70 text-white font-semibold rounded-xl text-xs shadow-md transition-all"
                   >
-                    <BrainCircuit className="w-4 h-4 fill-white/10" /> AI Breakdown
+                    {aiLoading ? (
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <BrainCircuit className="w-4 h-4 fill-white/10" />
+                    )}
+                    {aiLoading ? "Structuring..." : "AI Breakdown"}
                   </button>
                 </div>
               </div>

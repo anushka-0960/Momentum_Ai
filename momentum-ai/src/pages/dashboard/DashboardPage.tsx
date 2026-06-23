@@ -11,10 +11,14 @@ import {
   Check, 
   Play, 
   PlusCircle, 
-  BrainCircuit 
+  BrainCircuit,
+  Mic,
+  MicOff 
 } from "lucide-react";
 import { useTasks } from "../../hooks/useTasks";
 import { useAuth } from "../../hooks/useAuth";
+import { aiApi } from "../../api/aiApi";
+import { auth } from "../../services/firebase";
 import { 
   subscribeToHabits, 
   toggleHabitDate, 
@@ -39,6 +43,44 @@ export default function DashboardPage() {
   const [taskDueDate, setTaskDueDate] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [isListening, setIsListening] = useState(false);
+  const [coachAdvice, setCoachAdvice] = useState("Analyzing your workload to provide coaching feedback...");
+
+  const startVoiceInput = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice recognition is not supported in this browser. Please try Chrome or Edge.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      // Strip any ending period that speech recognition automatically adds
+      const cleanTranscript = transcript.endsWith(".") ? transcript.slice(0, -1) : transcript;
+      setTaskTitle(cleanTranscript);
+      setIsListening(false);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error:", event);
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
+  };
 
   // Subscribing to habits
   useEffect(() => {
@@ -48,6 +90,43 @@ export default function DashboardPage() {
     });
     return () => unsubscribe();
   }, [user]);
+
+  const fetchCoachAdvice = async () => {
+    if (!user) return;
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const pendingTasks = tasks.filter(t => t.status !== "done");
+      const tasksSummary = pendingTasks.map(t => `${t.title} (${t.priority} priority)`).join(", ") || "No tasks scheduled.";
+      const habitsSummary = habits.map(h => `${h.name} (${h.streak} day streak)`).join(", ") || "No habits logged.";
+
+      const response = await aiApi.coach(tasksSummary, habitsSummary, token);
+      if (response && response.message) {
+        setCoachAdvice(response.message);
+        return;
+      }
+    } catch (err) {
+      console.warn("AI Coach advice request failed, calling local fallback: ", err);
+    }
+
+    // Fallback logic if API failed
+    const pending = tasks.filter(t => t.status !== "done");
+    if (pending.length === 0) {
+      setCoachAdvice("Incredible! You have completed all scheduled tasks. Take a 15-minute screen break to rest your eyes.");
+    } else {
+      const highPriority = pending.find(t => t.priority === "high");
+      if (highPriority) {
+        setCoachAdvice(`Prioritize "${highPriority.title}". It's ranked High. Breaking this down now will save you stress later.`);
+      } else {
+        setCoachAdvice(`You have ${pending.length} tasks waiting. Select the quickest one, set a 25-minute Pomodoro, and cross it off.`);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (user && (tasks.length > 0 || habits.length > 0)) {
+      fetchCoachAdvice();
+    }
+  }, [user, tasks.length, habits.length]);
 
   // Handle Quick Add Task
   const handleQuickAdd = async (e: React.FormEvent) => {
@@ -111,22 +190,6 @@ export default function DashboardPage() {
   ];
   const COLORS = ["#2563eb", "#e2e8f0"];
 
-  // Fallback coaching tips generator
-  const getAISuggestion = () => {
-    if (tasks.length === 0) {
-      return "Your planner is empty. Add your first task and let's get some momentum going!";
-    }
-    const pending = tasks.filter(t => t.status !== "done");
-    if (pending.length === 0) {
-      return "Incredible! You have completed all scheduled tasks. Take a 15-minute screen break to rest your eyes.";
-    }
-    const highPriority = pending.find(t => t.priority === "high");
-    if (highPriority) {
-      return `Prioritize "${highPriority.title}". It's ranked High. Breaking this down now will save you stress later.`;
-    }
-    return `You have ${pending.length} tasks waiting. Select the quickest one, set a 25-minute Pomodoro, and cross it off.`;
-  };
-
   return (
     <div className="space-y-6">
       
@@ -157,14 +220,14 @@ export default function DashboardPage() {
         className="glass-card p-4 rounded-2xl border border-blue-100 dark:border-slate-850 flex items-start gap-3 bg-gradient-to-r from-accent-50/50 via-white/80 to-indigo-50/30 dark:from-slate-900/30 dark:via-slate-900/60 dark:to-slate-900/30"
       >
         <span className="p-2 rounded-xl bg-accent-100 dark:bg-accent-950/60 text-accent-700 dark:text-accent-400 shrink-0">
-          <BrainCircuit className="w-5 h-5" />
+          <BrainCircuit className="w-5 h-5 animate-pulse" style={{ animationDuration: '3s' }} />
         </span>
         <div>
           <h3 className="text-sm font-bold text-slate-950 dark:text-white flex items-center gap-1.5">
-            Coach Insight <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent-100 dark:bg-accent-950 text-accent-700 dark:text-accent-400 font-semibold uppercase tracking-wider">Gemini Draft</span>
+            Coach Insight <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent-100 dark:bg-accent-950 text-accent-700 dark:text-accent-400 font-semibold uppercase tracking-wider">Gemini Active</span>
           </h3>
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-0.5 leading-normal">
-            {getAISuggestion()}
+          <p className="text-xs sm:text-sm text-slate-650 dark:text-slate-400 mt-0.5 leading-normal">
+            {coachAdvice}
           </p>
         </div>
       </motion.div>
@@ -260,15 +323,27 @@ export default function DashboardPage() {
               </div>
             )}
             <form onSubmit={handleQuickAdd} className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-              <div className="sm:col-span-6">
+              <div className="sm:col-span-6 relative flex items-center">
                 <input 
                   type="text" 
                   required
                   value={taskTitle}
                   onChange={(e) => setTaskTitle(e.target.value)}
                   placeholder="What is your next focus goal?" 
-                  className="w-full bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-850 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 text-slate-900 dark:text-white"
+                  className="w-full bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-850 rounded-xl pl-3.5 pr-10 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 text-slate-900 dark:text-white"
                 />
+                <button
+                  type="button"
+                  onClick={startVoiceInput}
+                  className={`absolute right-2 p-1.5 rounded-lg transition-all ${
+                    isListening 
+                      ? "text-red-500 bg-red-50 dark:bg-red-950/30 animate-pulse" 
+                      : "text-slate-400 hover:text-slate-655 dark:hover:text-slate-200"
+                  }`}
+                  title="Speak Task"
+                >
+                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </button>
               </div>
               <div className="sm:col-span-3">
                 <select 

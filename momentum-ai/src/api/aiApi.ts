@@ -7,28 +7,35 @@ import type {
   WeeklyReviewResponse,
 } from "../types/ai";
 
-// One function per AI endpoint defined in the architecture doc (section 6).
-// Implemented fully in the "AI task breakdown" build step.
 export const aiApi = {
-  breakdown: (title: string) =>
+  breakdown: (title: string, token?: string) =>
     apiClient<BreakdownResponse>("/api/ai/breakdown", {
       method: "POST",
       body: JSON.stringify({ title }),
+      authToken: token,
     }),
-  prioritize: (taskIds: string[]) =>
+  prioritize: (tasks: { id: string; title: string; dueDate?: string; priority: string }[], token?: string) =>
     apiClient<PrioritizationResponse>("/api/ai/prioritize", {
       method: "POST",
-      body: JSON.stringify({ taskIds }),
+      body: JSON.stringify({ tasks }),
+      authToken: token,
     }),
-  schedule: (date: string) =>
+  schedule: (date: string, workHours: { start: string; end: string }, tasksSummary: string, token?: string) =>
     apiClient<ScheduleResponse>("/api/ai/schedule", {
       method: "POST",
-      body: JSON.stringify({ date }),
+      body: JSON.stringify({ date, workHours, tasksSummary }),
+      authToken: token,
     }),
-  coach: () => apiClient<CoachResponse>("/api/ai/coach", { method: "POST" }),
-  weeklyReview: (weekId: string) =>
+  coach: (tasksSummary: string, habitsSummary: string, token?: string) => 
+    apiClient<CoachResponse>("/api/ai/coach", { 
+      method: "POST",
+      body: JSON.stringify({ tasksSummary, habitsSummary }),
+      authToken: token,
+    }),
+  weeklyReview: (weekSummary: string, token?: string) =>
     apiClient<WeeklyReviewResponse>("/api/ai/weekly-review", {
       method: "POST",
-      body: JSON.stringify({ weekId }),
+      body: JSON.stringify({ weekSummary }),
+      authToken: token,
     }),
 };

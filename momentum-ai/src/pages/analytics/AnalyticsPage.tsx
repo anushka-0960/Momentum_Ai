@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   BarChart, 
   Bar, 
@@ -20,6 +20,8 @@ import {
   Award
 } from "lucide-react";
 import { useTasks } from "../../hooks/useTasks";
+import { aiApi } from "../../api/aiApi";
+import { auth } from "../../services/firebase";
 
 // Mock weekly trend data
 const weeklyFocusData = [
@@ -42,6 +44,8 @@ const taskCompletionHistory = [
 export default function AnalyticsPage() {
   const { tasks } = useTasks();
   const [activeTab, setActiveTab] = useState<"charts" | "weekly_review">("charts");
+  const [weeklyReview, setWeeklyReview] = useState<any | null>(null);
+  const [loadingReview, setLoadingReview] = useState(false);
 
   // Real stats based on actual tasks
   const totalTasks = tasks.length;
@@ -49,7 +53,6 @@ export default function AnalyticsPage() {
   const inProgressTasks = tasks.filter(t => t.status === "in_progress").length;
   const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-  // Mock AI review synthesis (Phase 5 will fetch this from the Express server)
   const mockWeeklyReview = {
     achievements: [
       "🔥 Completed 85% of high-priority project tasks this week.",
@@ -72,6 +75,33 @@ export default function AnalyticsPage() {
       "🚶 Take a 15-minute screen-free walk on Thursday after lunch to recharge."
     ]
   };
+
+  const fetchWeeklyReview = async () => {
+    setLoadingReview(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const completedList = tasks.filter(t => t.status === "done").map(t => t.title).join(", ");
+      const pendingList = tasks.filter(t => t.status !== "done").map(t => `${t.title} (${t.priority} priority)`).join(", ");
+      const summaryText = `Completed tasks: ${completedList || "None"}. Pending tasks: ${pendingList || "None"}. Rate: ${completionRate}%.`;
+
+      const response = await aiApi.weeklyReview(summaryText, token);
+      if (response && response.achievements) {
+        setWeeklyReview(response);
+        setLoadingReview(false);
+        return;
+      }
+    } catch (err) {
+      console.warn("Weekly review API failed, using local mock fallback:", err);
+    }
+    setWeeklyReview(mockWeeklyReview);
+    setLoadingReview(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === "weekly_review" && !weeklyReview) {
+      fetchWeeklyReview();
+    }
+  }, [activeTab]);
 
   return (
     <div className="space-y-6 h-full flex flex-col min-h-0">
@@ -187,7 +217,16 @@ export default function AnalyticsPage() {
             </div>
 
           </div>
-        ) : (
+        ) : loadingReview ? (
+          /* Loading Review State */
+          <div className="glass-card p-12 rounded-3xl border border-white/40 dark:border-slate-850/60 shadow-sm flex flex-col items-center justify-center gap-4 text-center">
+            <div className="w-10 h-10 border-4 border-accent-600 border-t-transparent rounded-full animate-spin" />
+            <div>
+              <p className="text-sm font-semibold text-slate-850 dark:text-white">AI Coach is reviewing your week...</p>
+              <p className="text-xs text-slate-400 mt-1">Analyzing focus minutes, task completion frequencies, and habit patterns.</p>
+            </div>
+          </div>
+        ) : weeklyReview ? (
           /* AI Weekly Review Content */
           <div className="glass-card p-6 rounded-3xl border border-white/40 dark:border-slate-850/60 shadow-sm space-y-6">
             <div className="flex items-start justify-between border-b border-slate-200 dark:border-slate-850 pb-4">
@@ -195,7 +234,7 @@ export default function AnalyticsPage() {
                 <BrainCircuit className="w-5.5 h-5.5 text-accent-600" />
                 <div>
                   <h3 className="font-bold text-slate-950 dark:text-white">Gemini Productivity Report</h3>
-                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mt-0.5">Synthesized 1h ago</span>
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mt-0.5">Synthesized just now</span>
                 </div>
               </div>
               <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-450 rounded-xl text-xs font-bold flex items-center gap-1">
@@ -211,7 +250,7 @@ export default function AnalyticsPage() {
                   <CheckCircle2 className="w-4.5 h-4.5" /> Achievements & Wins
                 </h4>
                 <ul className="space-y-3">
-                  {mockWeeklyReview.achievements.map((item, i) => (
+                  {weeklyReview.achievements.map((item: string, i: number) => (
                     <li key={i} className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-normal bg-slate-50/50 dark:bg-slate-950/40 p-3 rounded-xl border border-slate-100 dark:border-slate-850">
                       {item}
                     </li>
@@ -225,7 +264,7 @@ export default function AnalyticsPage() {
                   <AlertTriangle className="w-4.5 h-4.5" /> Missed Goals
                 </h4>
                 <ul className="space-y-3">
-                  {mockWeeklyReview.missedGoals.map((item, i) => (
+                  {weeklyReview.missedGoals.map((item: string, i: number) => (
                     <li key={i} className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-normal bg-slate-50/50 dark:bg-slate-950/40 p-3 rounded-xl border border-slate-100 dark:border-slate-850">
                       {item}
                     </li>
@@ -239,7 +278,7 @@ export default function AnalyticsPage() {
                   <Sparkles className="w-4.5 h-4.5" /> Focus Strengths
                 </h4>
                 <ul className="space-y-3">
-                  {mockWeeklyReview.strengths.map((item, i) => (
+                  {weeklyReview.strengths.map((item: string, i: number) => (
                     <li key={i} className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-normal bg-slate-50/50 dark:bg-slate-950/40 p-3 rounded-xl border border-slate-100 dark:border-slate-850">
                       {item}
                     </li>
@@ -253,7 +292,7 @@ export default function AnalyticsPage() {
                   <Flame className="w-4.5 h-4.5" /> Focus Leakages
                 </h4>
                 <ul className="space-y-3">
-                  {mockWeeklyReview.weaknesses.map((item, i) => (
+                  {weeklyReview.weaknesses.map((item: string, i: number) => (
                     <li key={i} className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-normal bg-slate-50/50 dark:bg-slate-950/40 p-3 rounded-xl border border-slate-100 dark:border-slate-850">
                       {item}
                     </li>
@@ -269,7 +308,7 @@ export default function AnalyticsPage() {
                 <BrainCircuit className="w-4.5 h-4.5" /> Recommended adjustments for next week
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {mockWeeklyReview.recommendations.map((item, i) => (
+                {weeklyReview.recommendations.map((item: string, i: number) => (
                   <div key={i} className="p-3 bg-gradient-to-tr from-accent-500/10 via-transparent to-indigo-500/10 rounded-2xl text-xs sm:text-sm text-slate-700 dark:text-slate-300 border border-accent-500/20 leading-normal font-medium">
                     {item}
                   </div>
@@ -277,6 +316,11 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
+          </div>
+        ) : (
+          /* Empty state */
+          <div className="text-center text-slate-400 py-12">
+            No report available yet. Start tracking tasks to see reviews.
           </div>
         )}
       </div>
