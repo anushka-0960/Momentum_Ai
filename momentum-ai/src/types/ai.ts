@@ -1,9 +1,23 @@
-import type { Subtask, Priority } from "./task";
+import type { Difficulty, Priority } from "./task";
 
 // Shapes returned by the /api/ai/* endpoints — kept in sync with the
 // prompt schemas defined in server/src/prompts/.
+export interface BreakdownTask {
+  title: string;
+  description: string;
+  estimatedMinutes: number;
+  difficulty: Difficulty;
+}
+
+export interface BreakdownPhase {
+  name: string;
+  estimatedTime: string;
+  tasks: BreakdownTask[];
+}
+
 export interface BreakdownResponse {
-  subtasks: Subtask[];
+  summary: string;
+  phases: BreakdownPhase[];
 }
 
 export interface PrioritizationResponse {

@@ -33,16 +33,36 @@ export async function generateJSON<T>(prompt: string, fallbackType?: "breakdown"
 
 // Helper to provide realistic mock structures when API is unavailable or mock keys are used
 function getMockFallback(prompt: string, fallbackType?: string): any {
-  if (fallbackType === "breakdown" || prompt.includes("subtasks")) {
-    const match = prompt.match(/Task: "(.*)"/);
+  if (fallbackType === "breakdown" || prompt.includes("phases")) {
+    const match = prompt.match(/Project Title: "(.*)"/);
     const taskTitle = match ? match[1] : "Project";
     return {
-      subtasks: [
-        { id: Math.random().toString(36).substring(2, 9), title: `🔍 Research context for "${taskTitle}"`, estimatedMinutes: 45, difficulty: "easy", done: false },
-        { id: Math.random().toString(36).substring(2, 9), title: `🎨 Draft basic wireframes and style guides`, estimatedMinutes: 90, difficulty: "medium", done: false },
-        { id: Math.random().toString(36).substring(2, 9), title: `💻 Implement core frontend layout scaffolding`, estimatedMinutes: 180, difficulty: "hard", done: false },
-        { id: Math.random().toString(36).substring(2, 9), title: `🧪 Perform accessibility and responsiveness audits`, estimatedMinutes: 60, difficulty: "medium", done: false },
-        { id: Math.random().toString(36).substring(2, 9), title: `🚀 Execute deployment pipeline configurations`, estimatedMinutes: 30, difficulty: "easy", done: false },
+      summary: `Detailed execution plan for "${taskTitle}". Suggested Stack: Vite, React, Tailwind CSS for frontend, and Node/Express backend proxy.`,
+      phases: [
+        {
+          name: "Phase 1: Research & Planning",
+          estimatedTime: "2 hours",
+          tasks: [
+            { title: "Define Requirements", description: "Document initial specs, goals, and constraints.", estimatedMinutes: 45, difficulty: "easy" },
+            { title: "Analyze Solutions", description: "Search for references and outline architecture designs.", estimatedMinutes: 75, difficulty: "medium" }
+          ]
+        },
+        {
+          name: "Phase 2: Core Implementation",
+          estimatedTime: "5 hours",
+          tasks: [
+            { title: "Frontend Layout Setup", description: "Code views and responsive page shells.", estimatedMinutes: 180, difficulty: "medium" },
+            { title: "Backend API Proxy Integration", description: "Wired routes controllers and logic validations.", estimatedMinutes: 120, difficulty: "hard" }
+          ]
+        },
+        {
+          name: "Phase 3: Validation & Deploy",
+          estimatedTime: "2 hours",
+          tasks: [
+            { title: "Audit Accessibility Pass", description: "Verify ARIA labeling and screen-readers configurations.", estimatedMinutes: 60, difficulty: "medium" },
+            { title: "Deploy Production Bundle", description: "Build and push live configuration parameters.", estimatedMinutes: 60, difficulty: "easy" }
+          ]
+        }
       ]
     };
   }

@@ -85,20 +85,38 @@ export default function TasksPage() {
       const token = await auth.currentUser?.getIdToken();
       const response = await aiApi.breakdown(task.title, token);
       
-      if (response && response.subtasks && response.subtasks.length > 0) {
-        const mappedSubtasks = response.subtasks.map((sub) => ({
-          id: sub.id || Math.random().toString(36).substring(2, 9),
-          title: sub.title,
-          estimatedMinutes: sub.estimatedMinutes || 20,
-          difficulty: sub.difficulty || "medium",
-          done: false
-        }));
+      if (response && response.phases && response.phases.length > 0) {
+        let roadmapMarkdown = `# 🤖 AI Execution Roadmap\n\n`;
+        roadmapMarkdown += `**Summary:**\n${response.summary}\n\n`;
+        roadmapMarkdown += `--- \n\n## Logical Execution Phases:\n\n`;
+
+        const mappedSubtasks: any[] = [];
+
+        response.phases.forEach((phase, phaseIdx) => {
+          roadmapMarkdown += `### ${phase.name} (Duration: ${phase.estimatedTime})\n`;
+          phase.tasks.forEach((sub) => {
+            const timeStr = sub.estimatedMinutes >= 60 
+              ? `${(sub.estimatedMinutes / 60).toFixed(1)}h` 
+              : `${sub.estimatedMinutes}m`;
+            
+            roadmapMarkdown += `- **${sub.title}** (_${timeStr}_ | _${sub.difficulty}_)\n  ${sub.description}\n`;
+            
+            mappedSubtasks.push({
+              id: Math.random().toString(36).substring(2, 9),
+              title: `[P${phaseIdx + 1}] ${sub.title}`,
+              estimatedMinutes: sub.estimatedMinutes || 30,
+              difficulty: sub.difficulty || "medium",
+              done: false
+            });
+          });
+          roadmapMarkdown += `\n`;
+        });
 
         await updateTaskDetails(task.id, {
           subtasks: [...task.subtasks, ...mappedSubtasks],
           description: task.description 
-            ? `${task.description}\n\n🤖 [AI Coach]: Task structured into steps.` 
-            : "🤖 [AI Coach]: Task structured into steps."
+            ? `${task.description}\n\n${roadmapMarkdown}` 
+            : roadmapMarkdown
         });
         setAiLoading(false);
         return;
@@ -108,27 +126,51 @@ export default function TasksPage() {
     }
 
     // Fallback Mock Breakdown
-    const mockBreakdowns = [
-      { title: "🔍 Initial Research & Requirements gather", minutes: 30, diff: "easy" as const },
-      { title: "🎨 Layout wireframe & design prototyping", minutes: 60, diff: "medium" as const },
-      { title: "💻 Frontend scaffolding & components coding", minutes: 120, diff: "hard" as const },
-      { title: "🧪 Unit tests & edge-cases validation", minutes: 45, diff: "medium" as const },
-      { title: "🚀 Deployment setup & pipeline audit", minutes: 30, diff: "easy" as const },
-    ];
+    const mockResponse = {
+      summary: `Roadmap for building "${task.title}". Suggested Stack: React, Vite, Tailwind CSS, Node/Express.`,
+      phases: [
+        {
+          name: "Phase 1: Research & Setup",
+          estimatedTime: "2 hours",
+          tasks: [
+            { title: "Research Inspiration & Design Patterns", description: "Audit competing features and design layout ideas.", estimatedMinutes: 60, difficulty: "easy" as const },
+            { title: "Outline Specifications", description: "Define detailed roadmap deliverables and constraints.", estimatedMinutes: 60, difficulty: "medium" as const }
+          ]
+        },
+        {
+          name: "Phase 2: Code Implementation",
+          estimatedTime: "5 hours",
+          tasks: [
+            { title: "Develop Scaffolding Layout", description: "Configure pages routes and AppShell shell styles.", estimatedMinutes: 180, difficulty: "medium" as const },
+            { title: "Configure API Proxy Endpoints", description: "Wire controllers and middleware logic validations.", estimatedMinutes: 120, difficulty: "hard" as const }
+          ]
+        }
+      ]
+    };
 
-    const currentSubtasks = [...task.subtasks];
-    
-    const generated = mockBreakdowns.map((mock) => ({
-      id: Math.random().toString(36).substring(2, 9),
-      title: `🤖 [Fallback] ${mock.title}`,
-      estimatedMinutes: mock.minutes,
-      difficulty: mock.diff,
-      done: false
-    }));
+    let roadmapMarkdown = `# 🤖 AI Execution Roadmap (Fallback)\n\n`;
+    roadmapMarkdown += `**Summary:**\n${mockResponse.summary}\n\n`;
+    roadmapMarkdown += `--- \n\n## Logical Execution Phases:\n\n`;
+
+    const generated: any[] = [];
+    mockResponse.phases.forEach((phase, phaseIdx) => {
+      roadmapMarkdown += `### ${phase.name} (Duration: ${phase.estimatedTime})\n`;
+      phase.tasks.forEach((sub) => {
+        roadmapMarkdown += `- **${sub.title}** (_${sub.estimatedMinutes}m_ | _${sub.difficulty}_)\n  ${sub.description}\n`;
+        generated.push({
+          id: Math.random().toString(36).substring(2, 9),
+          title: `[P${phaseIdx + 1}] ${sub.title}`,
+          estimatedMinutes: sub.estimatedMinutes,
+          difficulty: sub.difficulty,
+          done: false
+        });
+      });
+      roadmapMarkdown += `\n`;
+    });
 
     await updateTaskDetails(task.id, {
-      subtasks: [...currentSubtasks, ...generated],
-      description: task.description ? `${task.description}\n\n(Local fallback structured subtasks)` : "Local fallback structured subtasks"
+      subtasks: [...task.subtasks, ...generated],
+      description: task.description ? `${task.description}\n\n${roadmapMarkdown}` : roadmapMarkdown
     });
     setAiLoading(false);
   };
