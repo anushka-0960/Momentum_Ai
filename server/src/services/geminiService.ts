@@ -37,30 +37,32 @@ function getMockFallback(prompt: string, fallbackType?: string): any {
     const match = prompt.match(/Project Title: "(.*)"/);
     const taskTitle = match ? match[1] : "Project";
     return {
-      summary: `Detailed execution plan for "${taskTitle}". Suggested Stack: Vite, React, Tailwind CSS for frontend, and Node/Express backend proxy.`,
+      projectName: taskTitle,
       phases: [
         {
-          name: "Phase 1: Research & Planning",
-          estimatedTime: "2 hours",
+          phaseName: "🔍 Research",
           tasks: [
-            { title: "Define Requirements", description: "Document initial specs, goals, and constraints.", estimatedMinutes: 45, difficulty: "easy" },
-            { title: "Analyze Solutions", description: "Search for references and outline architecture designs.", estimatedMinutes: 75, difficulty: "medium" }
+            { title: `Research guidelines for "${taskTitle}"`, estimatedMinutes: 45 },
+            { title: "Analyze technical solution frameworks", estimatedMinutes: 75 }
           ]
         },
         {
-          name: "Phase 2: Core Implementation",
-          estimatedTime: "5 hours",
+          phaseName: "💻 Frontend",
           tasks: [
-            { title: "Frontend Layout Setup", description: "Code views and responsive page shells.", estimatedMinutes: 180, difficulty: "medium" },
-            { title: "Backend API Proxy Integration", description: "Wired routes controllers and logic validations.", estimatedMinutes: 120, difficulty: "hard" }
+            { title: "Scaffold responsive client pages", estimatedMinutes: 180 },
+            { title: "Wired routes and layout components", estimatedMinutes: 120 }
           ]
         },
         {
-          name: "Phase 3: Validation & Deploy",
-          estimatedTime: "2 hours",
+          phaseName: "🧪 Testing",
           tasks: [
-            { title: "Audit Accessibility Pass", description: "Verify ARIA labeling and screen-readers configurations.", estimatedMinutes: 60, difficulty: "medium" },
-            { title: "Deploy Production Bundle", description: "Build and push live configuration parameters.", estimatedMinutes: 60, difficulty: "easy" }
+            { title: "Verify edge-cases and viewport styling", estimatedMinutes: 60 }
+          ]
+        },
+        {
+          phaseName: "🚀 Deployment",
+          tasks: [
+            { title: "Deploy build bundle to static hosting", estimatedMinutes: 60 }
           ]
         }
       ]

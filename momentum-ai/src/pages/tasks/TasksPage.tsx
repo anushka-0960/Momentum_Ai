@@ -86,26 +86,26 @@ export default function TasksPage() {
       const response = await aiApi.breakdown(task.title, token);
       
       if (response && response.phases && response.phases.length > 0) {
-        let roadmapMarkdown = `# 🤖 AI Execution Roadmap\n\n`;
-        roadmapMarkdown += `**Summary:**\n${response.summary}\n\n`;
-        roadmapMarkdown += `--- \n\n## Logical Execution Phases:\n\n`;
+        let roadmapMarkdown = `# 🤖 AI Hackathon Execution Roadmap\n`;
+        roadmapMarkdown += `**Project:** ${response.projectName}\n\n`;
+        roadmapMarkdown += `## Breakdown\n\n`;
 
         const mappedSubtasks: any[] = [];
 
-        response.phases.forEach((phase, phaseIdx) => {
-          roadmapMarkdown += `### ${phase.name} (Duration: ${phase.estimatedTime})\n`;
+        response.phases.forEach((phase) => {
+          roadmapMarkdown += `### ${phase.phaseName}\n`;
           phase.tasks.forEach((sub) => {
             const timeStr = sub.estimatedMinutes >= 60 
               ? `${(sub.estimatedMinutes / 60).toFixed(1)}h` 
               : `${sub.estimatedMinutes}m`;
             
-            roadmapMarkdown += `- **${sub.title}** (_${timeStr}_ | _${sub.difficulty}_)\n  ${sub.description}\n`;
+            roadmapMarkdown += `- **${sub.title}** (_${timeStr}_)\n`;
             
             mappedSubtasks.push({
               id: Math.random().toString(36).substring(2, 9),
-              title: `[P${phaseIdx + 1}] ${sub.title}`,
+              title: `[${phase.phaseName.replace(/[^\w\s\u00C0-\u017F]/g, "").trim()}] ${sub.title}`,
               estimatedMinutes: sub.estimatedMinutes || 30,
-              difficulty: sub.difficulty || "medium",
+              difficulty: "medium" as const,
               done: false
             });
           });
@@ -127,41 +127,39 @@ export default function TasksPage() {
 
     // Fallback Mock Breakdown
     const mockResponse = {
-      summary: `Roadmap for building "${task.title}". Suggested Stack: React, Vite, Tailwind CSS, Node/Express.`,
+      projectName: task.title,
       phases: [
         {
-          name: "Phase 1: Research & Setup",
-          estimatedTime: "2 hours",
+          phaseName: "🔍 Research",
           tasks: [
-            { title: "Research Inspiration & Design Patterns", description: "Audit competing features and design layout ideas.", estimatedMinutes: 60, difficulty: "easy" as const },
-            { title: "Outline Specifications", description: "Define detailed roadmap deliverables and constraints.", estimatedMinutes: 60, difficulty: "medium" as const }
+            { title: "Research specifications and frameworks requirements", estimatedMinutes: 45 },
+            { title: "Define layout design mockups structures", estimatedMinutes: 60 }
           ]
         },
         {
-          name: "Phase 2: Code Implementation",
-          estimatedTime: "5 hours",
+          phaseName: "💻 Frontend",
           tasks: [
-            { title: "Develop Scaffolding Layout", description: "Configure pages routes and AppShell shell styles.", estimatedMinutes: 180, difficulty: "medium" as const },
-            { title: "Configure API Proxy Endpoints", description: "Wire controllers and middleware logic validations.", estimatedMinutes: 120, difficulty: "hard" as const }
+            { title: "Build responsive pages shells layout", estimatedMinutes: 180 },
+            { title: "Integrate routes validation and logic", estimatedMinutes: 120 }
           ]
         }
       ]
     };
 
-    let roadmapMarkdown = `# 🤖 AI Execution Roadmap (Fallback)\n\n`;
-    roadmapMarkdown += `**Summary:**\n${mockResponse.summary}\n\n`;
-    roadmapMarkdown += `--- \n\n## Logical Execution Phases:\n\n`;
+    let roadmapMarkdown = `# 🤖 AI Hackathon Execution Roadmap (Fallback)\n`;
+    roadmapMarkdown += `**Project:** ${mockResponse.projectName}\n\n`;
+    roadmapMarkdown += `## Breakdown\n\n`;
 
     const generated: any[] = [];
-    mockResponse.phases.forEach((phase, phaseIdx) => {
-      roadmapMarkdown += `### ${phase.name} (Duration: ${phase.estimatedTime})\n`;
+    mockResponse.phases.forEach((phase) => {
+      roadmapMarkdown += `### ${phase.phaseName}\n`;
       phase.tasks.forEach((sub) => {
-        roadmapMarkdown += `- **${sub.title}** (_${sub.estimatedMinutes}m_ | _${sub.difficulty}_)\n  ${sub.description}\n`;
+        roadmapMarkdown += `- **${sub.title}** (_${sub.estimatedMinutes}m_)\n`;
         generated.push({
           id: Math.random().toString(36).substring(2, 9),
-          title: `[P${phaseIdx + 1}] ${sub.title}`,
+          title: `[${phase.phaseName.replace(/[^\w\s\u00C0-\u017F]/g, "").trim()}] ${sub.title}`,
           estimatedMinutes: sub.estimatedMinutes,
-          difficulty: sub.difficulty,
+          difficulty: "medium" as const,
           done: false
         });
       });
