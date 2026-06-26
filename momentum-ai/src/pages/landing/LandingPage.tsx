@@ -1,541 +1,1583 @@
-import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Sparkles, 
+  Zap, 
+  BookOpen, 
+  Map, 
   Clock, 
   ArrowRight, 
-  ChevronDown, 
+  Loader2, 
+  AlertCircle, 
+  ShieldAlert, 
+  ListTodo, 
+  PlusCircle, 
+  GraduationCap, 
+  TrendingUp, 
   CheckCircle2, 
-  Flame, 
-  BrainCircuit, 
-  Zap, 
-  Sun, 
-  Moon 
+  CheckCircle,
+  Database,
+  Lock,
+  Server,
+  Layers,
+  HelpCircle,
+  Download,
+  Copy,
+  ChevronRight,
+  Sparkles,
+  Users,
+  Compass,
+  CheckSquare,
+  Search,
+  Moon,
+  Sun,
+  LayoutGrid,
+  FileCode,
+  DollarSign,
+  Cpu,
+  FolderOpen
 } from "lucide-react";
-import { useTheme } from "../../contexts/ThemeContext";
+import { aiApi } from "../../api/aiApi";
+import type { BreakdownResponse, BreakdownPhase, FolderNode } from "../../types/ai";
 
-// Interface for FAQ item
-interface FAQItem {
-  question: string;
-  answer: string;
+const PHASE_EMOJIS: Record<string, string> = {
+  "Planning": "📋",
+  "UI/UX Design": "🎨",
+  "Frontend": "💻",
+  "Backend": "⚙️",
+  "Database": "🗄️",
+  "API Integration": "🔌",
+  "AI Integration": "🧠",
+  "Authentication": "🔒",
+  "Testing": "🧪",
+  "Deployment": "🚀"
+};
+
+const PROJECT_TYPES = [
+  "Web App",
+  "Mobile App",
+  "Desktop App",
+  "AI Application",
+  "SaaS",
+  "Game",
+  "API",
+  "CLI Tool",
+  "IoT Project"
+];
+
+const DIFFICULTY_LEVELS = [
+  "Beginner",
+  "Intermediate",
+  "Advanced"
+];
+
+const VAGUE_TITLES = ["website", "mobile app", "project", "ai", "app", "web app", "desktop app", "game", "site", "software"];
+
+const LOADING_STAGES = [
+  "Initializing domain mapper parameters...",
+  "Analyzing target industry user workflows...",
+  "Designing project-specific database models...",
+  "Structuring REST API router contracts...",
+  "Creating custom folder hierarchy trees...",
+  "Detailing implementation phase steps...",
+  "Mapping weekly sprints and objectives...",
+  "Calculating complexity scores and costs...",
+  "Formulating cloud deployment pipelines..."
+];
+
+function formatMinutes(minutes: number): string {
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (remainingMinutes === 0) {
+    return `${hours} hr${hours > 1 ? "s" : ""}`;
+  }
+  return `${hours} hr${hours > 1 ? "s" : ""} ${remainingMinutes} min`;
 }
 
+// Tree view rendering of dynamic folders
+function FolderTree({ node }: { node: FolderNode }) {
+  const [isOpen, setIsOpen] = useState(true);
+  const isDir = node.type === "directory";
+  return (
+    <div className="pl-4 select-none text-left">
+      <div 
+        onClick={() => isDir && setIsOpen(!isOpen)} 
+        className={`flex items-center gap-1.5 py-1 text-xs font-semibold cursor-pointer ${
+          isDir ? "text-blue-600 dark:text-blue-400" : "text-slate-650 dark:text-slate-450"
+        }`}
+      >
+        {isDir ? (isOpen ? "📂" : "📁") : "📄"}
+        <span>{node.name}</span>
+      </div>
+      {isDir && isOpen && node.children && (
+        <div className="border-l border-slate-200 dark:border-slate-700 ml-2">
+          {node.children.map((child, idx) => (
+            <FolderTree key={idx} node={child} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Layout positions for Visual SVG flow graph
+const SVG_NODE_POSITIONS: Record<string, { x: number; y: number }> = {
+  "User": { x: 175, y: 30 },
+  "Frontend": { x: 175, y: 95 },
+  "Backend": { x: 175, y: 160 },
+  "Database": { x: 75, y: 235 },
+  "Redis": { x: 275, y: 235 },
+  "Stripe": { x: 175, y: 285 },
+  "SocketioGateway": { x: 275, y: 160 },
+  "S3SecureBuckets": { x: 75, y: 160 },
+  "PKIDigitalSigner": { x: 175, y: 285 },
+  "OpenAIGPT4SDK": { x: 275, y: 95 },
+  "ServerlessPuppeteer": { x: 75, y: 95 }
+};
+
 export default function LandingPage() {
-  const { theme, toggleTheme } = useTheme();
-  const [activeFaq, setActiveFaq] = useState<number | null>(null);
-  const [demoInput, setDemoInput] = useState("Build portfolio");
-  const [demoSubtasks, setDemoSubtasks] = useState<string[]>([]);
-  const [demoLoading, setDemoLoading] = useState(false);
+  // Theme & layout states
+  const [darkMode, setDarkMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const faqData: FAQItem[] = [
-    {
-      question: "How is Momentum AI different from standard todo apps?",
-      answer: "Standard todo apps only remind you of what you missed. Momentum AI acts like a personal coach: it breaks big goals into actionable steps, schedules them in your free blocks, writes contextual reminders, and gives weekly coaching advice based on your habits."
-    },
-    {
-      question: "Does it connect to my calendar?",
-      answer: "Yes! Momentum AI integrates with Google Calendar to understand your meeting schedules and meal times, finding the optimal blocks for focus tasks."
-    },
-    {
-      question: "What AI model runs behind the scenes?",
-      answer: "We use Google Gemini via Google AI Studio. It leverages gemini-2.0-flash for high-speed subtask structuring and prioritizations, giving you instant responses."
-    },
-    {
-      question: "Is there support for dark mode?",
-      answer: "Absolutely. Momentum AI is built with full dark mode styling. You can toggle it at the top right of the landing page or dashboard."
-    }
-  ];
+  // Input states
+  const [projectName, setProjectName] = useState("");
+  const [projectType, setProjectType] = useState("Web App");
+  const [difficulty, setDifficulty] = useState("Intermediate");
+  const [techStackInput, setTechStackInput] = useState("");
 
-  const simulateBreakdown = () => {
-    if (demoInput.trim() === "") return;
-    setDemoLoading(true);
-    setDemoSubtasks([]);
-    
-    setTimeout(() => {
-      setDemoLoading(false);
-      setDemoSubtasks([
-        "🔍 Research: Study 3 target competitor portfolios (1h)",
-        "🎨 Design: Outline color schemes, fonts, and wireframes in Figma (2h)",
-        "💻 Frontend: Build React + Tailwind layout with page routing (4h)",
-        "⚙️ Backend: Setup Node.js API with Express & Firebase storage (3h)",
-        "🧪 Testing: Validate responsiveness and test loading skeletons (1.5h)",
-        "🚀 Deployment: Deploy frontend on Vercel and backend on Cloud Run (1h)"
-      ]);
-    }, 1200);
-  };
+  // AI Output states
+  const [loading, setLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState(0);
+  const [roadmap, setRoadmap] = useState<BreakdownResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Trigger demo simulation on mount to catch attention
+  // Refinement states
+  const [refinePrompt, setRefinePrompt] = useState("");
+  const [refineLoading, setRefineLoading] = useState(false);
+  const [refineMessages, setRefineMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
+
+  // Checklist & modal triggers
+  const [completedDeliverables, setCompletedDeliverables] = useState<Record<string, boolean>>({});
+  const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({});
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"markdown" | "json" | "notion" | "jira" | "trello" | "github_issues">("markdown");
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  const generatorRef = useRef<HTMLDivElement>(null);
+  const outputRef = useRef<HTMLDivElement>(null);
+
+  // Handle stage increments when loading
   useEffect(() => {
-    const timer = setTimeout(() => {
-      simulateBreakdown();
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, []);
+    let interval: any;
+    if (loading) {
+      setLoadingStage(0);
+      interval = setInterval(() => {
+        setLoadingStage(prev => (prev + 1) % LOADING_STAGES.length);
+      }, 1500);
+    }
+    return () => clearInterval(interval);
+  }, [loading]);
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1,
-      transition: { staggerChildren: 0.15 }
+  // Dark mode effect toggler
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [darkMode]);
+
+  const handleGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setValidationError(null);
+    setError(null);
+
+    const trimmedTitle = projectName.trim().toLowerCase();
+    
+    // Validate project name
+    if (!projectName.trim()) return;
+
+    if (VAGUE_TITLES.includes(trimmedTitle) || trimmedTitle.length < 3) {
+      setValidationError(
+        'Please enter a specific project idea, such as "Expense Tracker App", "Food Delivery Platform", or "AI Resume Builder".'
+      );
+      return;
+    }
+
+    setLoading(true);
+    setRoadmap(null);
+    setCompletedDeliverables({});
+    setExpandedPhases({});
+    setRefineMessages([]);
+
+    try {
+      const response = await aiApi.breakdown(
+        projectName,
+        projectType,
+        difficulty,
+        techStackInput || undefined
+      );
+      setRoadmap(response);
+      
+      // Auto expand all phases by default
+      const initialExpanded: Record<string, boolean> = {};
+      response.phases.forEach(p => {
+        initialExpanded[p.phaseName] = true;
+      });
+      setExpandedPhases(initialExpanded);
+      
+      // Smooth scroll to output cards
+      setTimeout(() => {
+        outputRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to generate blueprint. Please check that your server is running and try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: "easeOut" } }
+  // Refine endpoint triggers conversational changes
+  const handleRefineSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!refinePrompt.trim() || !roadmap) return;
+
+    const userMessage = refinePrompt;
+    setRefineMessages(prev => [...prev, { role: "user", text: userMessage }]);
+    setRefinePrompt("");
+    setRefineLoading(true);
+
+    try {
+      const updatedRoadmap = await aiApi.refine(roadmap, userMessage);
+      setRoadmap(updatedRoadmap);
+      
+      setRefineMessages(prev => [
+        ...prev,
+        { role: "assistant", text: `Blueprint updated successfully to apply: "${userMessage}"` }
+      ]);
+    } catch (err) {
+      console.error(err);
+      setRefineMessages(prev => [
+        ...prev,
+        { role: "assistant", text: "Error: Failed to refine roadmap. Please try again." }
+      ]);
+    } finally {
+      setRefineLoading(false);
+    }
+  };
+
+  // Export content generators
+  const getExportContent = () => {
+    if (!roadmap) return "";
+
+    if (exportFormat === "json") {
+      return JSON.stringify(roadmap, null, 2);
+    }
+
+    if (exportFormat === "markdown") {
+      let md = `# Project Blueprint: ${roadmap.projectName}\n\n`;
+      md += `**Domain:** ${roadmap.domain} | **Difficulty:** ${roadmap.difficulty} | **Hours:** ${roadmap.estimatedTotalHours} hours\n\n`;
+      md += `## Summary\n${roadmap.projectSummary}\n\n`;
+      md += `## Recommended Tech Stack\n`;
+      md += `* **Frontend:** ${roadmap.techStack.frontend.name} - ${roadmap.techStack.frontend.reason}\n`;
+      md += `* **Backend:** ${roadmap.techStack.backend.name} - ${roadmap.techStack.backend.reason}\n`;
+      md += `* **Database:** ${roadmap.techStack.database.name} - ${roadmap.techStack.database.reason}\n`;
+      md += `* **Authentication:** ${roadmap.techStack.authentication.name} - ${roadmap.techStack.authentication.reason}\n`;
+      md += `* **Hosting:** ${roadmap.techStack.hosting.name} - ${roadmap.techStack.hosting.reason}\n\n`;
+      md += `## Development Roadmap\n`;
+      roadmap.phases.forEach(phase => {
+        md += `### ${phase.phaseName} (Goal: ${phase.goal} | Weight: ${phase.weight}% | Priority: ${phase.priority})\n`;
+        md += `**Dependencies:** ${phase.dependencies.join(", ") || "None"}\n`;
+        phase.tasks.forEach(task => {
+          md += `* [ ] ${task.title} (${formatMinutes(task.estimatedMinutes)})\n`;
+        });
+        md += `\n`;
+      });
+      return md;
+    }
+
+    if (exportFormat === "notion") {
+      let notion = `Notion Database Format:\n\nTask | Phase | Duration | Weight | Priority\n---|---|---|---|---\n`;
+      roadmap.phases.forEach(phase => {
+        phase.tasks.forEach(task => {
+          notion += `${task.title} | ${phase.phaseName} | ${formatMinutes(task.estimatedMinutes)} | ${phase.weight}% | ${phase.priority}\n`;
+        });
+      });
+      return notion;
+    }
+
+    if (exportFormat === "trello") {
+      let trello = `Trello Cards Format (Group by List/Phase):\n\n`;
+      roadmap.phases.forEach(phase => {
+        trello += `List Name: ${phase.phaseName}\n`;
+        phase.tasks.forEach(task => {
+          trello += `- [ ] ${task.title} (${formatMinutes(task.estimatedMinutes)})\n`;
+        });
+        trello += `\n`;
+      });
+      return trello;
+    }
+
+    if (exportFormat === "jira") {
+      let jira = `Summary,Issue Type,Description,Priority\n`;
+      roadmap.phases.forEach(phase => {
+        phase.tasks.forEach(task => {
+          jira += `"${task.title}","Sub-task","Phase: ${phase.phaseName} - Goal: ${phase.goal}","${phase.priority}"\n`;
+        });
+      });
+      return jira;
+    }
+
+    if (exportFormat === "github_issues") {
+      let github = `## GitHub Issues for ${roadmap.projectName}\n\n`;
+      roadmap.phases.forEach(phase => {
+        github += `### Issue: Phase [${phase.phaseName}] - ${phase.goal}\n`;
+        github += `**Priority:** ${phase.priority}\n`;
+        github += `**Tasks list:**\n`;
+        phase.tasks.forEach(task => {
+          github += `- [ ] ${task.title} (${formatMinutes(task.estimatedMinutes)})\n`;
+        });
+        github += `\n`;
+      });
+      return github;
+    }
+
+    return "";
+  };
+
+  const handleCopyClipboard = () => {
+    navigator.clipboard.writeText(getExportContent());
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
+  };
+
+  const handleDownloadFile = () => {
+    const content = getExportContent();
+    const ext = exportFormat === "json" ? "json" : "md";
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${roadmap?.projectName.toLowerCase().replace(/\s+/g, "_")}_blueprint.${ext}`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const toggleDeliverable = (item: string) => {
+    setCompletedDeliverables(prev => ({
+      ...prev,
+      [item]: !prev[item]
+    }));
+  };
+
+  const togglePhase = (phaseName: string) => {
+    setExpandedPhases(prev => ({
+      ...prev,
+      [phaseName]: !prev[phaseName]
+    }));
+  };
+
+  const getNodePosition = (id: string, index: number, total: number) => {
+    if (SVG_NODE_POSITIONS[id]) return SVG_NODE_POSITIONS[id];
+    return {
+      x: 50 + (index % 3) * 115,
+      y: 235 + Math.floor(index / 3) * 60
+    };
+  };
+
+  const scrollToGenerator = () => {
+    generatorRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Filter phases/tasks based on user search query
+  const getFilteredPhases = () => {
+    if (!roadmap) return [];
+    if (!searchQuery.trim()) return roadmap.phases;
+
+    return roadmap.phases.map(phase => {
+      const matchedTasks = phase.tasks.filter(t => 
+        t.title.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      const matchedGoal = phase.goal.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchedName = phase.phaseName.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const shouldInclude = matchedName || matchedGoal || matchedTasks.length > 0;
+      
+      return {
+        ...phase,
+        tasks: matchedTasks,
+        shouldInclude
+      };
+    }).filter(p => p.shouldInclude);
+  };
+
+  // Framer Motion animation setups
+  const listContainerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.08 }
+    }
+  };
+
+  const cardVariants = {
+    hidden: { opacity: 0, y: 15 },
+    show: { 
+      opacity: 1, 
+      y: 0, 
+      transition: { 
+        type: "spring", 
+        stiffness: 85,
+        damping: 15
+      } 
+    }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-      {/* Background Glow Effect */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-accent-400/20 dark:bg-accent-600/10 blur-[120px] rounded-full -z-10" />
-      <div className="absolute top-1/3 right-1/4 w-[450px] h-[450px] bg-indigo-400/20 dark:bg-indigo-600/10 blur-[150px] rounded-full -z-10" />
-
-      {/* Header */}
-      <nav className="sticky top-0 z-50 glass-card mx-4 my-3 rounded-2xl px-6 py-4 flex items-center justify-between border border-white/20 dark:border-slate-800">
-        <div className="flex items-center gap-2">
-          <span className="p-2 rounded-xl bg-accent-600 text-white flex items-center justify-center shadow-lg shadow-accent-600/30">
-            <Zap className="w-5 h-5 fill-white" />
-          </span>
-          <span className="font-bold text-xl tracking-tight text-slate-900 dark:text-white">
-            Momentum<span className="text-accent-600">AI</span>
-          </span>
-        </div>
-        
-        <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600 dark:text-slate-300">
-          <a href="#features" className="hover:text-accent-600 dark:hover:text-accent-400 transition-colors">Features</a>
-          <a href="#how-it-works" className="hover:text-accent-600 dark:hover:text-accent-400 transition-colors">How It Works</a>
-          <a href="#testimonials" className="hover:text-accent-600 dark:hover:text-accent-400 transition-colors">Success Stories</a>
-          <a href="#faq" className="hover:text-accent-600 dark:hover:text-accent-400 transition-colors">FAQ</a>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={toggleTheme} 
-            className="p-2 rounded-lg text-slate-500 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50 transition-all"
-            aria-label="Toggle Dark Mode"
-          >
-            {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans antialiased transition-colors duration-300">
+      
+      {/* Navbar */}
+      <nav className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="p-2 rounded-lg bg-blue-600 text-white flex items-center justify-center">
+              <Zap className="w-5 h-5 fill-white" />
+            </span>
+            <span className="font-bold text-xl tracking-tight">
+              Momentum<span className="text-blue-600">AI</span>
+            </span>
+          </div>
           
-          <Link 
-            to="/signin" 
-            className="hidden sm:inline-flex text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-accent-600 dark:hover:text-accent-400 px-4 py-2 transition-colors"
-          >
-            Sign In
-          </Link>
-          
-          <Link 
-            to="/signup" 
-            className="inline-flex text-sm font-semibold text-white bg-accent-600 hover:bg-accent-700 px-5 py-2.5 rounded-xl shadow-md hover:shadow-lg shadow-accent-600/20 hover:shadow-accent-600/30 transition-all items-center gap-1.5"
-          >
-            Get Started <ArrowRight className="w-4 h-4" />
-          </Link>
+          <div className="flex items-center gap-6 text-sm font-semibold text-slate-600 dark:text-slate-350">
+            <a href="#" className="hover:text-blue-600 transition-colors">Home</a>
+            <a href="#features" className="hover:text-blue-600 transition-colors">Features</a>
+            <button 
+              onClick={() => setDarkMode(!darkMode)}
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400"
+              aria-label="Toggle dark mode"
+            >
+              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+          </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="relative max-w-7xl mx-auto px-6 pt-12 pb-24 md:py-32 grid md:grid-cols-12 gap-12 items-center">
-        <motion.div 
-          className="md:col-span-7 space-y-6 text-left"
-          initial={{ opacity: 0, x: -30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.7 }}
-        >
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-accent-100 text-accent-700 dark:bg-accent-950/60 dark:text-accent-400 border border-accent-200 dark:border-accent-800">
-            <Sparkles className="w-3.5 h-3.5" /> Next-Gen AI Productivity Coach
-          </span>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-[1.1]">
-            Finish work. <br />
-            <span className="text-gradient">Stop procrastinating.</span>
-          </h1>
-          <p className="text-lg text-slate-600 dark:text-slate-400 max-w-xl leading-relaxed">
-            Your AI productivity partner that helps you finish work instead of just reminding you. Momentum AI breaks down projects, optimizes schedules, and delivers context-aware focus reminders.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 pt-2">
-            <Link 
-              to="/signup" 
-              className="inline-flex justify-center items-center gap-2 px-6 py-3.5 rounded-xl bg-accent-600 hover:bg-accent-700 text-white font-semibold shadow-lg shadow-accent-600/25 transition-all text-base"
-            >
-              Start Free Coaching <ArrowRight className="w-5 h-5" />
-            </Link>
-            <a 
-              href="#demo" 
-              className="inline-flex justify-center items-center gap-2 px-6 py-3.5 rounded-xl glass-card text-slate-800 dark:text-slate-200 hover:bg-white/90 dark:hover:bg-slate-900/90 font-semibold transition-all border border-slate-200 dark:border-slate-800 text-base"
-            >
-              See AI in Action
-            </a>
-          </div>
-          <div className="flex items-center gap-6 pt-4 text-xs text-slate-500 dark:text-slate-400">
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Google Login Integrated
-            </div>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" /> No Card Required
-            </div>
-          </div>
-        </motion.div>
+      <section className="max-w-4xl mx-auto px-6 py-20 text-center space-y-8">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-150 dark:border-blue-800/40">
+          🧠 AI Software Architect & System Planner
+        </span>
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight">
+          AI Software Architect
+        </h1>
+        <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
+          Input any dynamic project target and instantly generate database schemas, REST routes, sprint timetables, SVG topology diagrams, costs, and risk audits.
+        </p>
+        <div className="pt-4">
+          <button 
+            onClick={scrollToGenerator} 
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all text-base shadow-sm hover:shadow"
+          >
+            Design Architecture <ArrowRight className="w-5 h-5" />
+          </button>
+        </div>
+      </section>
 
-        {/* Hero Interactive Mockup */}
-        <motion.div 
-          className="md:col-span-5"
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.7, delay: 0.2 }}
-          id="demo"
-        >
-          <div className="glass-card rounded-2xl border border-white/40 dark:border-slate-800 p-6 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-accent-500/10 rounded-full blur-xl" />
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
-              <div className="flex items-center gap-2">
-                <BrainCircuit className="w-5 h-5 text-accent-600" />
-                <span className="font-semibold text-sm text-slate-800 dark:text-slate-200">AI Task Breakdown Demo</span>
+      {/* Main Architect Settings Form */}
+      <section ref={generatorRef} className="max-w-6xl mx-auto px-6 py-12 scroll-mt-20">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8 shadow-sm space-y-8">
+          <div className="border-b border-slate-100 dark:border-slate-700 pb-4">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Project Architect Planner</h2>
+            <p className="text-sm text-slate-550 dark:text-slate-400 font-medium">Auto-discovers features, structural folders, database tables, and milestones dynamically.</p>
+          </div>
+
+          <form onSubmit={handleGenerate} className="space-y-6">
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Project Name */}
+              <div className="space-y-2">
+                <label htmlFor="project-name" className="block text-sm font-bold text-slate-705 dark:text-slate-300">
+                  Project Name / Target Goal
+                </label>
+                <input 
+                  id="project-name"
+                  type="text" 
+                  value={projectName} 
+                  onChange={(e) => setProjectName(e.target.value)}
+                  placeholder="e.g. Stock Trading Platform, AI Resume Builder..."
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 dark:text-slate-100 placeholder-slate-400 transition-colors"
+                  required
+                  disabled={loading}
+                />
               </div>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+
+              {/* Project Type */}
+              <div className="space-y-2">
+                <label htmlFor="project-type" className="block text-sm font-bold text-slate-700 dark:text-slate-300">
+                  Application Category
+                </label>
+                <select
+                  id="project-type"
+                  value={projectType}
+                  onChange={(e) => setProjectType(e.target.value)}
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 dark:text-slate-100 transition-colors cursor-pointer"
+                  disabled={loading}
+                >
+                  {PROJECT_TYPES.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Difficulty */}
+              <div className="space-y-2">
+                <label htmlFor="difficulty" className="block text-sm font-bold text-slate-700 dark:text-slate-300">
+                  Complexity Scope
+                </label>
+                <select
+                  id="difficulty"
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value)}
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 dark:text-slate-100 transition-colors cursor-pointer"
+                  disabled={loading}
+                >
+                  {DIFFICULTY_LEVELS.map(level => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Optional Tech Stack */}
+              <div className="space-y-2">
+                <label htmlFor="tech-stack" className="block text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                  <span>Target Tech Stack</span>
+                  <span className="text-xs text-slate-400 font-semibold">Leave blank for AI decision</span>
+                </label>
+                <input 
+                  id="tech-stack"
+                  type="text" 
+                  value={techStackInput} 
+                  onChange={(e) => setTechStackInput(e.target.value)}
+                  placeholder="e.g. Flutter + Firebase, MERN, Rails + Postgres..."
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 dark:text-slate-100 placeholder-slate-400 transition-colors"
+                  disabled={loading}
+                />
+              </div>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-400 dark:text-slate-500 block mb-1">Enter a project/task</label>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={demoInput} 
-                    onChange={(e) => setDemoInput(e.target.value)}
-                    placeholder="e.g. Build app, Prep interview"
-                    className="flex-1 bg-white/50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 text-slate-900 dark:text-white"
-                  />
-                  <button 
-                    onClick={simulateBreakdown}
-                    disabled={demoLoading}
-                    className="bg-accent-600 hover:bg-accent-700 text-white rounded-xl px-4 py-2 text-sm font-semibold transition-colors flex items-center justify-center gap-1 shrink-0 disabled:opacity-70"
-                  >
-                    Breakdown
-                  </button>
+            {/* Validation Warnings */}
+            {validationError && (
+              <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-300 rounded-xl flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <span className="text-sm font-medium leading-normal">{validationError}</span>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {error && (
+              <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 rounded-xl flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <span className="text-sm font-medium">{error}</span>
+              </div>
+            )}
+
+            {/* Generate Button */}
+            <div className="flex justify-end pt-2">
+              <button 
+                type="submit"
+                disabled={loading || !projectName.trim()}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl px-8 py-3.5 transition-colors flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Analyzing Domain & Generating Spec...
+                  </>
+                ) : (
+                  <>
+                    Compile Architect Blueprint
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+
+          {/* Typing Loading State */}
+          {loading && (
+            <div className="border border-slate-200 dark:border-slate-700 rounded-2xl p-12 flex flex-col items-center justify-center gap-4 text-center min-h-[350px]">
+              <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+              <div className="space-y-2.5 max-w-md">
+                <p className="font-bold text-slate-800 dark:text-white text-lg">AI Software Architect at Work</p>
+                <div className="bg-slate-100 dark:bg-slate-900 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 animate-pulse block">
+                    {LOADING_STAGES[loadingStage]}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-normal">Creating project-specific database tables, folder trees, REST API endpoints, sprint timelines, and mitigations.</p>
+              </div>
+            </div>
+          )}
+
+          {/* AI OUTPUT VIEWPORT PORTAL */}
+          <div ref={outputRef} className="scroll-mt-20">
+            {roadmap && !loading && (
+              <div className="grid lg:grid-cols-12 gap-8 items-start text-left">
+                
+                {/* Navigator Sidebar */}
+                <div className="lg:col-span-3 hidden lg:block sticky top-24 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-1 shadow-sm">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-3 pb-2 border-b border-slate-100 dark:border-slate-800 mb-2">Blueprint Navigator</h3>
+                  {[
+                    { label: "1. Overview & Understanding", id: "#overview" },
+                    { label: "2. Features & Tech Stack", id: "#features-list" },
+                    { label: "3. Flow Diagram", id: "#diagram" },
+                    { label: "4. Database Design", id: "#database-design" },
+                    { label: "5. REST API Endpoints", id: "#apis" },
+                    { label: "6. Folder Structure", id: "#folders" },
+                    { label: "7. Detailed Phases", id: "#detailed-roadmap" },
+                    { label: "8. Weekly Sprints", id: "#weekly-sprints" },
+                    { label: "9. Complexity Metrics", id: "#complexity-metrics" },
+                    { label: "10. Topics & Risks", id: "#learning-risks" },
+                    { label: "11. Cost & Time Estimates", id: "#costs" },
+                    { label: "12. Deployment Plan", id: "#deploy" },
+                    { label: "13. Refinement chatbot", id: "#refinement" }
+                  ].map((link, linkIdx) => (
+                    <a 
+                      key={linkIdx} 
+                      href={link.id}
+                      className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 rounded-xl transition-colors"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                      {link.label}
+                    </a>
+                  ))}
+                  
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-800 mt-4 px-3">
+                    <button 
+                      onClick={() => setExportModalOpen(true)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 dark:bg-blue-600 hover:bg-slate-850 dark:hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition-colors cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      Export Specs
+                    </button>
+                  </div>
+                </div>
+
+                {/* Dashboard panels */}
+                <div className="lg:col-span-9 space-y-8">
+                  
+                  {/* Step 1: Project Understanding & Summary */}
+                  <div id="overview" className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-6 shadow-sm scroll-mt-24">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-700 pb-4">
+                      <div>
+                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1">
+                          <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                          Handcrafted System Blueprint
+                        </span>
+                        <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">{roadmap.projectName}</h2>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-2">
+                        <span className="text-xs font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded-lg border border-blue-200/40 dark:border-blue-800/40">
+                          {roadmap.domain}
+                        </span>
+                        <span className="text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-650 dark:text-slate-350 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600">
+                          {projectType}
+                        </span>
+                        <span className={`text-xs font-bold px-3 py-1.5 rounded-lg border ${
+                          roadmap.difficulty === "Beginner" 
+                            ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border-emerald-200/40" 
+                            : roadmap.difficulty === "Advanced"
+                            ? "bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-300 border-rose-200/40"
+                            : "bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 border-amber-200/40"
+                        }`}>
+                          {roadmap.difficulty}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid sm:grid-cols-3 gap-6 text-center border-b border-slate-100 dark:border-slate-700 pb-6">
+                      <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
+                        <span className="text-xs text-slate-400 font-bold block mb-1">Time Estimation</span>
+                        <span className="text-lg font-extrabold text-slate-800 dark:text-white flex items-center justify-center gap-1">
+                          <Clock className="w-4 h-4 text-blue-500" />
+                          {roadmap.estimatedTotalHours} Hours
+                        </span>
+                      </div>
+                      <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
+                        <span className="text-xs text-slate-400 font-bold block mb-1">Architect Confidence</span>
+                        <span className="text-lg font-extrabold text-slate-800 dark:text-white">
+                          {roadmap.confidenceScore}%
+                        </span>
+                      </div>
+                      <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
+                        <span className="text-xs text-slate-400 font-bold block mb-1">Suggested Team Size</span>
+                        <span className="text-lg font-extrabold text-slate-800 dark:text-white flex items-center justify-center gap-1">
+                          <Users className="w-4 h-4 text-blue-500" />
+                          {roadmap.recommendedTeamSize} Dev{roadmap.recommendedTeamSize > 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">Architect Summary</h3>
+                        <p className="text-slate-600 dark:text-slate-350 text-sm leading-relaxed">{roadmap.projectSummary}</p>
+                      </div>
+
+                      <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-xl p-4 space-y-4">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Deep Project Analysis</h4>
+                        <div className="grid md:grid-cols-2 gap-4 text-xs">
+                          <div className="space-y-1">
+                            <span className="font-extrabold text-slate-700 dark:text-slate-300 block">Industry Segment:</span>
+                            <span className="text-slate-600 dark:text-slate-400">{roadmap.projectUnderstanding.industry}</span>
+                          </div>
+                          <div className="space-y-1">
+                            <span className="font-extrabold text-slate-700 dark:text-slate-300 block">Core Problem:</span>
+                            <span className="text-slate-600 dark:text-slate-400">{roadmap.projectUnderstanding.coreProblem}</span>
+                          </div>
+                          <div className="space-y-1">
+                            <span className="font-extrabold text-slate-700 dark:text-slate-300 block">Target Audience:</span>
+                            <span className="text-slate-600 dark:text-slate-400">{roadmap.projectUnderstanding.targetUsers}</span>
+                          </div>
+                          <div className="space-y-1">
+                            <span className="font-extrabold text-slate-700 dark:text-slate-300 block">System Category:</span>
+                            <span className="text-slate-600 dark:text-slate-400">{roadmap.projectUnderstanding.category}</span>
+                          </div>
+                        </div>
+
+                        <div className="grid md:grid-cols-3 gap-4 border-t border-slate-200 dark:border-slate-800 pt-4 text-xs">
+                          <div className="space-y-1.5">
+                            <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1"><Cpu className="w-3.5 h-3.5 text-blue-500" /> Security Controls</span>
+                            <ul className="list-disc list-inside space-y-0.5 text-slate-600 dark:text-slate-455">
+                              {roadmap.projectUnderstanding.security.map((s, idx) => <li key={idx}>{s}</li>)}
+                            </ul>
+                          </div>
+                          <div className="space-y-1.5">
+                            <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1"><Layers className="w-3.5 h-3.5 text-blue-500" /> Scalability</span>
+                            <ul className="list-disc list-inside space-y-0.5 text-slate-600 dark:text-slate-455">
+                              {roadmap.projectUnderstanding.scalability.map((s, idx) => <li key={idx}>{s}</li>)}
+                            </ul>
+                          </div>
+                          <div className="space-y-1.5">
+                            <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5 text-blue-500" /> Performance Specs</span>
+                            <ul className="list-disc list-inside space-y-0.5 text-slate-600 dark:text-slate-455">
+                              {roadmap.projectUnderstanding.performance.map((s, idx) => <li key={idx}>{s}</li>)}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Step 2 & 3: Discovered Features & Tech Stack */}
+                  <div id="features-list" className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-6 shadow-sm scroll-mt-24">
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-3">
+                          <ListTodo className="w-5 h-5 text-blue-600" />
+                          Auto-Discovered Core Features
+                        </h3>
+                        <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-350">
+                          {roadmap.discoveredFeatures.map((f, idx) => (
+                            <li key={idx} className="flex items-start gap-2.5">
+                              <span className="text-blue-500 font-bold mt-0.5">•</span>
+                              <span>{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="space-y-4">
+                        <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-3">
+                          <Layers className="w-5 h-5 text-blue-600" />
+                          Recommended Tech Stack & Reasons
+                        </h3>
+                        <div className="space-y-2">
+                          {[
+                            { label: "Frontend", item: roadmap.techStack.frontend },
+                            { label: "Backend", item: roadmap.techStack.backend },
+                            { label: "Database", item: roadmap.techStack.database },
+                            { label: "Authentication", item: roadmap.techStack.authentication },
+                            { label: "Hosting Platform", item: roadmap.techStack.hosting }
+                          ].map((stack, idx) => (
+                            <div key={idx} className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-lg border border-slate-100 dark:border-slate-800 text-xs">
+                              <div className="flex justify-between font-bold text-slate-705 dark:text-slate-300">
+                                <span>{stack.label}:</span>
+                                <span className="text-blue-600 dark:text-blue-400">{stack.item.name}</span>
+                              </div>
+                              <p className="text-slate-500 dark:text-slate-400 mt-1">{stack.item.reason}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Step 4: Flow Diagram */}
+                  <div id="diagram" className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-4 shadow-sm scroll-mt-24">
+                    <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-3">
+                      <Compass className="w-5 h-5 text-blue-600" />
+                      Visual System Diagram Nodes
+                    </h3>
+                    <div className="relative">
+                      <svg className="w-full h-80 border border-slate-150 dark:border-slate-750 rounded-xl bg-slate-50/50 dark:bg-slate-900/50" viewBox="0 0 350 320">
+                        <defs>
+                          <marker 
+                            id="arrow-dark" 
+                            viewBox="0 0 10 10" 
+                            refX="6" 
+                            refY="5" 
+                            markerWidth="6" 
+                            markerHeight="6" 
+                            orient="auto-start-reverse"
+                          >
+                            <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6" />
+                          </marker>
+                        </defs>
+                        
+                        {/* Edges */}
+                        {roadmap.architectureDiagram.edges.map((edge, idx) => {
+                          const fromPos = getNodePosition(edge.from, idx, roadmap.architectureDiagram.nodes.length);
+                          const toPos = getNodePosition(edge.to, idx, roadmap.architectureDiagram.nodes.length);
+                          return (
+                            <line 
+                              key={idx} 
+                              x1={fromPos.x} 
+                              y1={fromPos.y + 16} 
+                              x2={toPos.x} 
+                              y2={toPos.y - 16} 
+                              stroke="#3b82f6" 
+                              strokeWidth="1.5" 
+                              markerEnd="url(#arrow-dark)" 
+                            />
+                          );
+                        })}
+
+                        {/* Nodes */}
+                        {roadmap.architectureDiagram.nodes.map((node, idx) => {
+                          const pos = getNodePosition(node.id, idx, roadmap.architectureDiagram.nodes.length);
+                          return (
+                            <g key={node.id}>
+                              <rect 
+                                x={pos.x - 52} 
+                                y={pos.y - 16} 
+                                width="104" 
+                                height="32" 
+                                rx="6" 
+                                fill={darkMode ? "#1e293b" : "white"} 
+                                stroke="#3b82f6" 
+                                strokeWidth="2" 
+                                className="shadow-sm"
+                              />
+                              <text 
+                                x={pos.x} 
+                                y={pos.y + 4} 
+                                textAnchor="middle" 
+                                fontSize="8" 
+                                fontWeight="bold" 
+                                fill={darkMode ? "#f1f5f9" : "#334155"}
+                              >
+                                {node.label}
+                              </text>
+                            </g>
+                          );
+                        })}
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Step 5: Database Design */}
+                  <div id="database-design" className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-6 shadow-sm scroll-mt-24">
+                    <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-3">
+                      <Database className="w-5 h-5 text-blue-600" />
+                      Dynamic Database Design (Entities & Relationships)
+                    </h3>
+                    <div className="grid md:grid-cols-2 gap-6">
+                      {roadmap.databaseDesign.entities.map((ent, idx) => (
+                        <div key={idx} className="bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-850 rounded-xl p-4 space-y-3">
+                          <h4 className="font-extrabold text-blue-650 dark:text-blue-450 text-sm flex items-center justify-between">
+                            <span>🔑 Table: {ent.name}</span>
+                          </h4>
+                          <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden text-xs">
+                            <table className="w-full text-left bg-white dark:bg-slate-900">
+                              <thead>
+                                <tr className="bg-slate-100 dark:bg-slate-800 text-slate-650 dark:text-slate-400 font-bold border-b border-slate-200 dark:border-slate-700">
+                                  <th className="px-3 py-1.5">Column</th>
+                                  <th className="px-3 py-1.5">Type</th>
+                                  <th className="px-3 py-1.5">Constraints</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {ent.fields.map((f: any, fIdx: number) => (
+                                  <tr key={fIdx} className="border-b border-slate-150 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-850/50">
+                                    <td className="px-3 py-1.5 font-bold font-mono text-slate-700 dark:text-slate-300">{f.name}</td>
+                                    <td className="px-3 py-1.5 font-mono text-slate-550 dark:text-slate-400">{f.type}</td>
+                                    <td className="px-3 py-1.5 text-slate-400 font-semibold">{f.constraints || "-"}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Relationships</span>
+                            <ul className="text-xs list-disc list-inside text-slate-600 dark:text-slate-400 space-y-0.5">
+                              {ent.relationships.map((rel: string, relIdx: number) => (
+                                <li key={relIdx}>{rel}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Step 6: REST API Endpoints */}
+                  <div id="apis" className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-6 shadow-sm scroll-mt-24">
+                    <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-3">
+                      <FileCode className="w-5 h-5 text-blue-600" />
+                      Dynamic REST API Endpoints
+                    </h3>
+                    <div className="space-y-4">
+                      {roadmap.apiEndpoints.map((api, idx) => {
+                        const isGet = api.method === "GET";
+                        const isPost = api.method === "POST";
+                        const isDelete = api.method === "DELETE";
+                        const isPut = api.method === "PUT" || api.method === "PATCH";
+                        const methodColor = isGet 
+                          ? "bg-emerald-500" 
+                          : isPost 
+                          ? "bg-blue-600" 
+                          : isDelete 
+                          ? "bg-red-500" 
+                          : "bg-amber-500";
+                        return (
+                          <div key={idx} className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-900/30">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border-b border-slate-150 dark:border-slate-750">
+                              <span className={`text-[10px] font-extrabold text-white px-2.5 py-1 rounded-md shrink-0 text-center ${methodColor}`}>
+                                {api.method}
+                              </span>
+                              <span className="font-mono text-xs font-bold text-slate-750 dark:text-slate-200 break-all">
+                                {api.path}
+                              </span>
+                              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium sm:ml-auto">
+                                {api.description}
+                              </span>
+                            </div>
+                            
+                            <div className="grid sm:grid-cols-2 gap-4 p-4 text-[10px] font-mono leading-normal bg-white dark:bg-slate-900">
+                              <div className="space-y-1">
+                                <span className="text-slate-400 font-bold block uppercase tracking-wider">Request Payload</span>
+                                <pre className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg overflow-x-auto text-slate-650 dark:text-slate-350 max-h-36">
+                                  {api.requestBody || "None / Query params"}
+                                </pre>
+                              </div>
+                              <div className="space-y-1">
+                                <span className="text-slate-400 font-bold block uppercase tracking-wider">Response Payload</span>
+                                <pre className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg overflow-x-auto text-slate-650 dark:text-slate-350 max-h-36">
+                                  {api.responseBody || "Status status check"}
+                                </pre>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Step 7: Folder Structure */}
+                  <div id="folders" className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-6 shadow-sm scroll-mt-24">
+                    <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-3">
+                      <FolderOpen className="w-5 h-5 text-blue-600" />
+                      Dynamic Workspace Folder Structure
+                    </h3>
+                    <div className="bg-slate-50 dark:bg-slate-900/50 p-4 border border-slate-150 dark:border-slate-800 rounded-xl">
+                      <FolderTree node={roadmap.folderStructure} />
+                    </div>
+                  </div>
+
+                  {/* Step 8: Detailed Roadmap */}
+                  <div id="detailed-roadmap" className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-6 shadow-sm scroll-mt-24">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-700 pb-3">
+                      <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
+                        <Map className="w-5 h-5 text-blue-600" />
+                        Detailed Implementation Phases
+                      </h3>
+                      
+                      {/* Search / Filter input */}
+                      <div className="relative">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                        <input 
+                          type="text" 
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder="Filter tasks / goals..."
+                          className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg pl-9 pr-4 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {getFilteredPhases().length === 0 ? (
+                        <p className="text-center text-xs text-slate-400 py-6">No matching phases or tasks found.</p>
+                      ) : (
+                        getFilteredPhases().map((phase, idx) => {
+                          const emoji = PHASE_EMOJIS[phase.phaseName] || "📋";
+                          const isExpanded = !!expandedPhases[phase.phaseName];
+
+                          return (
+                            <div key={idx} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-sm">
+                              
+                              {/* Header trigger */}
+                              <div 
+                                onClick={() => togglePhase(phase.phaseName)}
+                                className="bg-white dark:bg-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-750/30 px-6 py-4 flex items-center justify-between cursor-pointer transition-colors border-b border-slate-100 dark:border-slate-700"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xl flex items-center justify-center p-1.5 bg-slate-100 dark:bg-slate-900 rounded-lg">{emoji}</span>
+                                  <div>
+                                    <h4 className="font-bold text-slate-800 dark:text-white text-sm">{phase.phaseName}</h4>
+                                    <span className="text-xs text-slate-400 font-semibold">{phase.estimatedDuration} • {phase.weight}% Weight • Priority: {phase.priority}</span>
+                                  </div>
+                                </div>
+                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                                  {isExpanded ? "Collapse" : "Expand"}
+                                </span>
+                              </div>
+
+                              {/* Collapsible content */}
+                              {isExpanded && (
+                                <div className="px-6 py-4 bg-slate-50/30 dark:bg-slate-900/20 space-y-4">
+                                  <div className="grid sm:grid-cols-2 gap-4 text-xs font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-850 pb-3">
+                                    <div>
+                                      <span className="text-slate-400 dark:text-slate-500 block mb-0.5">Phase Goal</span>
+                                      <span className="text-slate-700 dark:text-slate-300">{phase.goal}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-slate-400 dark:text-slate-500 block mb-0.5">Dependencies</span>
+                                      <span className="text-slate-700 dark:text-slate-300">{phase.dependencies.join(", ") || "None"}</span>
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                      <span className="text-slate-400 dark:text-slate-500 block mb-0.5">Deliverables</span>
+                                      <div className="flex flex-wrap gap-1.5 mt-1">
+                                        {phase.deliverables.map((del, delIdx) => (
+                                          <span key={delIdx} className="bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-750 px-2 py-0.5 rounded">
+                                            {del}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {phase.tasks.map((task, taskIdx) => (
+                                      <li key={taskIdx} className="py-3 flex items-start justify-between gap-4">
+                                        <div className="flex items-start gap-2.5">
+                                          <span className="text-blue-500 font-bold mt-0.5">•</span>
+                                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-350 leading-normal">{task.title}</span>
+                                        </div>
+                                        <span className="text-[10px] text-slate-400 font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded shrink-0">
+                                          {formatMinutes(task.estimatedMinutes)}
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Step 9: Weekly Sprints */}
+                  <div id="weekly-sprints" className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-6 shadow-sm scroll-mt-24">
+                    <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-3">
+                      <CheckCircle2 className="w-5 h-5 text-blue-600" />
+                      Weekly Sprints & Milestones
+                    </h3>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      {roadmap.weeklyMilestones.map((w, idx) => (
+                        <div key={idx} className="bg-slate-50 dark:bg-slate-900/50 border border-slate-150 dark:border-slate-800 rounded-xl p-4 space-y-3 flex flex-col justify-between">
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Week {w.weekNumber}</span>
+                              <span className="text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded">
+                                {w.difficulty}
+                              </span>
+                            </div>
+                            <h4 className="text-xs font-bold text-slate-800 dark:text-white">{w.goal}</h4>
+                            <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 mt-2">
+                              <span className="text-[10px] text-slate-400 block mb-0.5">Expected Deliverable:</span>
+                              <span className="text-xs font-semibold text-slate-650 dark:text-slate-400 leading-normal">{w.expectedDeliverable}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 pt-3 border-t border-slate-100 dark:border-slate-800/40 mt-3">
+                            <span>Sprints: {w.hours} Hours</span>
+                            <span>Deps: {w.dependencies.join(", ") || "None"}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Step 10: Complexity Scores */}
+                  <div id="complexity-metrics" className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-6 shadow-sm scroll-mt-24">
+                    <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-3">
+                      <LayoutGrid className="w-5 h-5 text-blue-600" />
+                      Core Module Complexity Analysis
+                    </h3>
+                    <div className="space-y-4">
+                      {roadmap.complexityBreakdown.map((item, idx) => (
+                        <div key={idx} className="space-y-2 p-3 bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800 rounded-xl">
+                          <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-350">
+                            <span>{item.name}</span>
+                            <span>{item.score}/10</span>
+                          </div>
+                          <div className="w-full bg-slate-100 dark:bg-slate-900 rounded-full h-2.5">
+                            <div 
+                              className="bg-rose-500 h-2.5 rounded-full transition-all duration-700 ease-out" 
+                              style={{ width: `${item.score * 10}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-normal">
+                            <span className="font-bold text-slate-750 dark:text-slate-300">Why:</span> {item.explanation}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Step 11 & 12: Learning path & Technical risks */}
+                  <div id="learning-risks" className="grid md:grid-cols-2 gap-6 scroll-mt-24">
+                    
+                    {/* Learning path */}
+                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-4 shadow-sm">
+                      <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-3">
+                        <GraduationCap className="w-5 h-5 text-blue-600" />
+                        Domain Learning Path
+                      </h3>
+                      <div className="space-y-4">
+                        {roadmap.learningRoadmap.map((topic, idx) => (
+                          <div key={idx} className="bg-slate-50 dark:bg-slate-900/50 p-4 border border-slate-150 dark:border-slate-800 rounded-xl space-y-2 text-xs">
+                            <div className="flex justify-between font-bold">
+                              <span className="text-slate-850 dark:text-white">{topic.name}</span>
+                              <span className="text-blue-600 dark:text-blue-400">{topic.difficulty} ({topic.estimatedHours} Hrs)</span>
+                            </div>
+                            <p className="text-slate-650 dark:text-slate-400 leading-normal"><span className="font-bold text-slate-700">Goal:</span> {topic.whyLearnThis}</p>
+                            <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                              <span className="text-[10px] text-slate-400 block mb-1">Resources:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {topic.resourcesToExplore.map((res, rIdx) => (
+                                  <span key={rIdx} className="bg-white dark:bg-slate-950 text-[10px] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 px-2 py-0.5 rounded">
+                                    {res}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Risks & Mitigations */}
+                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-4 shadow-sm">
+                      <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-3">
+                        <ShieldAlert className="w-5 h-5 text-red-600" />
+                        Mitigating Tech Risks
+                      </h3>
+                      <div className="space-y-3.5">
+                        {roadmap.technicalRisks.map((riskItem, idx) => (
+                          <div key={idx} className="bg-red-50/30 dark:bg-red-950/10 border border-red-100 dark:border-red-900/30 rounded-xl p-4 space-y-2 text-xs">
+                            <div className="flex justify-between font-bold text-red-700 dark:text-red-400">
+                              <span className="flex items-center gap-1"><AlertCircle className="w-4 h-4" /> Risk: {riskItem.risk}</span>
+                            </div>
+                            <div className="flex gap-4 text-[10px] text-slate-400 font-bold">
+                              <span>Likelihood: {riskItem.likelihood}</span>
+                              <span>Impact: {riskItem.impact}</span>
+                            </div>
+                            <p className="text-slate-650 dark:text-slate-405 leading-normal">
+                              <span className="font-bold text-slate-800 dark:text-slate-300">Solution:</span> {riskItem.mitigation}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Step 11: Direct Checklist */}
+                  <div id="checklist" className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-4 shadow-sm">
+                    <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-3">
+                      <CheckSquare className="w-5 h-5 text-blue-600" />
+                      Dynamic Checklist
+                    </h3>
+                    <div className="grid md:grid-cols-2 gap-3 pt-1">
+                      {roadmap.deliverablesChecklist.map((item, idx) => {
+                        const checked = !!completedDeliverables[item];
+                        return (
+                          <div 
+                            key={idx}
+                            onClick={() => toggleDeliverable(item)}
+                            className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                              checked 
+                                ? "bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 text-slate-400 line-through" 
+                                : "bg-slate-50 dark:bg-slate-900/50 border-slate-250 dark:border-slate-750 hover:border-slate-350 text-slate-700 dark:text-slate-300"
+                            }`}
+                          >
+                            {checked ? (
+                              <CheckCircle className="w-4 h-4 text-blue-600 shrink-0" />
+                            ) : (
+                              <div className="w-4 h-4 rounded-full border border-slate-400 dark:border-slate-600 shrink-0 bg-white dark:bg-slate-900" />
+                            )}
+                            <span className="text-xs font-bold truncate">{item}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Step 13: Why choose these configurations */}
+                  <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm space-y-4">
+                    <details className="group cursor-pointer">
+                      <summary className="font-bold text-slate-900 dark:text-white text-base flex items-center justify-between list-none">
+                        <span className="flex items-center gap-2">
+                          <HelpCircle className="w-5 h-5 text-blue-600" />
+                          Why did AI choose this roadmap?
+                        </span>
+                        <span className="text-xs font-bold text-blue-600 group-open:hidden">Expand reasoning</span>
+                        <span className="text-xs font-bold text-blue-600 hidden group-open:inline">Collapse</span>
+                      </summary>
+                      
+                      <div className="grid sm:grid-cols-2 gap-6 pt-6 border-t border-slate-105 dark:border-slate-705 mt-4 text-xs font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
+                        <div className="space-y-1">
+                          <span className="font-extrabold text-slate-800 dark:text-slate-300 block text-xs">System Architecture</span>
+                          <p>{roadmap.aiReasoning.architecture}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="font-extrabold text-slate-800 dark:text-slate-300 block text-xs">Technology Choices</span>
+                          <p>{roadmap.aiReasoning.stack}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="font-extrabold text-slate-800 dark:text-slate-300 block text-xs">Database Choices</span>
+                          <p>{roadmap.aiReasoning.database}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="font-extrabold text-slate-800 dark:text-slate-300 block text-xs">Milestone Divisions</span>
+                          <p>{roadmap.aiReasoning.milestones}</p>
+                        </div>
+                      </div>
+                    </details>
+                  </div>
+
+                  {/* Step 14 & 15: Costs & Time Estimates */}
+                  <div id="costs" className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-6 shadow-sm scroll-mt-24">
+                    <div className="grid md:grid-cols-2 gap-6">
+                      
+                      {/* Costs card */}
+                      <div className="space-y-4 text-xs">
+                        <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-1.5"><DollarSign className="w-4 h-4 text-blue-500" /> Development Cost Projection</h4>
+                        <div className="space-y-3">
+                          {[
+                            { team: "Solo Developer", val: roadmap.developmentCost.soloDeveloper },
+                            { team: "2 Developers Team", val: roadmap.developmentCost.twoDevelopers },
+                            { team: "Startup Team (3-5 Devs)", val: roadmap.developmentCost.startupTeam },
+                            { team: "Enterprise Squad (SLA)", val: roadmap.developmentCost.enterpriseTeam }
+                          ].map((cost, idx) => (
+                            <div key={idx} className="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-2">
+                              <span className="font-bold text-slate-700 dark:text-slate-400">{cost.team}:</span>
+                              <span className="text-slate-600 dark:text-slate-300 font-semibold">{cost.val}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Time estimates */}
+                      <div className="space-y-4 text-xs">
+                        <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-1.5"><Clock className="w-4 h-4 text-blue-500" /> Work Hours Allocation</h4>
+                        <div className="space-y-2">
+                          {[
+                            { name: "Frontend Client UI", value: roadmap.timeEstimation.frontend },
+                            { name: "Backend Logic APIs", value: roadmap.timeEstimation.backend },
+                            { name: "Unit & Integration Testing", value: roadmap.timeEstimation.testing },
+                            { name: "Hosting Deployment", value: roadmap.timeEstimation.deployment },
+                            { name: "Documentation", value: roadmap.timeEstimation.documentation },
+                            { name: "Domain & Scope Research", value: roadmap.timeEstimation.research }
+                          ].map((time, idx) => (
+                            <div key={idx} className="space-y-1">
+                              <div className="flex justify-between font-bold text-slate-700 dark:text-slate-400">
+                                <span>{time.name}</span>
+                                <span>{time.value} Hours</span>
+                              </div>
+                              <div className="w-full bg-slate-100 dark:bg-slate-900 rounded-full h-1.5">
+                                <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${Math.min(100, (time.value / 60) * 100)}%` }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-450 leading-relaxed mt-2 italic">{roadmap.timeEstimation.explanation}</p>
+                      </div>
+
+                    </div>
+                  </div>
+
+                  {/* Step 16: Deployment Plan */}
+                  <div id="deploy" className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-6 shadow-sm scroll-mt-24">
+                    <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-3">
+                      <Server className="w-5 h-5 text-blue-600" />
+                      Cloud Deployment & Scaling Plan
+                    </h3>
+                    <div className="grid md:grid-cols-2 gap-6 text-xs leading-normal">
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <span className="font-extrabold text-slate-700 dark:text-slate-350 block uppercase tracking-wider text-[10px] text-slate-400">Hosting Solution</span>
+                          <p className="text-slate-650 dark:text-slate-400 font-semibold">{roadmap.deploymentPlan.hosting}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="font-extrabold text-slate-700 dark:text-slate-350 block uppercase tracking-wider text-[10px] text-slate-400">CI/CD Engine</span>
+                          <p className="text-slate-650 dark:text-slate-400 font-semibold">{roadmap.deploymentPlan.cicd}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="font-extrabold text-slate-700 dark:text-slate-350 block uppercase tracking-wider text-[10px] text-slate-400">Telemetry & Alerts</span>
+                          <p className="text-slate-650 dark:text-slate-400 font-semibold">{roadmap.deploymentPlan.monitoring}</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <span className="font-extrabold text-slate-700 dark:text-slate-350 block uppercase tracking-wider text-[10px] text-slate-400">Logging Transports</span>
+                          <p className="text-slate-650 dark:text-slate-400 font-semibold">{roadmap.deploymentPlan.logging}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="font-extrabold text-slate-700 dark:text-slate-350 block uppercase tracking-wider text-[10px] text-slate-400">Scalability Strategy</span>
+                          <p className="text-slate-650 dark:text-slate-400 font-semibold">{roadmap.deploymentPlan.scalingStrategy}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="font-extrabold text-slate-700 dark:text-slate-350 block uppercase tracking-wider text-[10px] text-slate-400">Config Environment Variables</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {roadmap.deploymentPlan.envVariables.map((env, envIdx) => (
+                              <span key={envIdx} className="bg-slate-100 dark:bg-slate-900 text-slate-650 dark:text-slate-350 border border-slate-200 dark:border-slate-700 font-mono text-[9px] px-2 py-0.5 rounded">
+                                {env}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Step 17: Interactive AI Refinement Panel */}
+                  <div id="refinement" className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-4 shadow-sm scroll-mt-24">
+                    <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-3">
+                      <Sparkles className="w-5 h-5 text-blue-600 animate-pulse" />
+                      Architect Refinement Assistant
+                    </h3>
+
+                    {/* Chat log */}
+                    <div className="space-y-3 max-h-60 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-900/50">
+                      {refineMessages.length === 0 ? (
+                        <p className="text-xs text-slate-400 font-medium text-center py-4">No blueprint changes submitted yet. Submit prompts below to adjust databases, hosting options, or timelines.</p>
+                      ) : (
+                        refineMessages.map((msg, idx) => (
+                          <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                            <div className={`p-3 rounded-xl max-w-[80%] text-xs font-semibold ${
+                              msg.role === "user" 
+                                ? "bg-blue-600 text-white" 
+                                : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                            }`}>
+                              {msg.text}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      
+                      {refineLoading && (
+                        <div className="flex justify-start items-center gap-2 text-xs text-slate-400">
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                          Modifying tables, stack choices, and folders...
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Suggestions */}
+                    <div className="flex flex-wrap gap-2 py-1">
+                      {[
+                        "Convert to Next.js",
+                        "Replace MongoDB with PostgreSQL",
+                        "Reduce timeline to 2 weeks",
+                        "Add Docker",
+                        "Make beginner friendly",
+                        "Convert into microservices"
+                      ].map((sug, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setRefinePrompt(sug)}
+                          disabled={refineLoading}
+                          className="text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-650 dark:text-blue-300 border border-blue-100 dark:border-blue-800 hover:bg-blue-100/50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                        >
+                          {sug}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Submit Form */}
+                    <form onSubmit={handleRefineSubmit} className="flex gap-2">
+                      <input 
+                        type="text" 
+                        value={refinePrompt}
+                        onChange={(e) => setRefinePrompt(e.target.value)}
+                        placeholder="e.g. Add Docker build steps or change stack to NestJS..."
+                        className="flex-1 bg-white dark:bg-slate-900 border border-slate-350 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 dark:text-slate-100"
+                        disabled={refineLoading}
+                      />
+                      <button 
+                        type="submit" 
+                        disabled={refineLoading || !refinePrompt.trim()}
+                        className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl px-5 py-2.5 text-xs transition-colors shadow-sm shrink-0 cursor-pointer"
+                      >
+                        Refine Blueprint
+                      </button>
+                    </form>
+                  </div>
+
                 </div>
               </div>
-
-              {/* Subtasks Box */}
-              <div className="min-h-[220px] bg-slate-100/50 dark:bg-slate-950/60 rounded-xl p-4 border border-slate-200/50 dark:border-slate-800/40 relative">
-                <AnimatePresence mode="wait">
-                  {demoLoading ? (
-                    <motion.div 
-                      key="loading"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="absolute inset-0 flex flex-col items-center justify-center gap-3"
-                    >
-                      <div className="w-8 h-8 border-4 border-accent-600 border-t-transparent rounded-full animate-spin" />
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Gemini generating subtasks...</p>
-                    </motion.div>
-                  ) : demoSubtasks.length > 0 ? (
-                    <motion.div 
-                      key="content"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="space-y-2.5"
-                    >
-                      {demoSubtasks.map((task, i) => (
-                        <motion.div 
-                          key={i}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.1 }}
-                          className="flex items-start gap-2.5 text-xs text-slate-700 dark:text-slate-300 font-medium leading-normal bg-white/70 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-100 dark:border-slate-800"
-                        >
-                          <CheckCircle2 className="w-4 h-4 text-accent-500 shrink-0 mt-0.5" />
-                          <span>{task}</span>
-                        </motion.div>
-                      ))}
-                    </motion.div>
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-400 dark:text-slate-500 font-medium">
-                      Enter a goal above and click Breakdown to see AI magic.
-                    </div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
+            )}
           </div>
-        </motion.div>
+        </div>
       </section>
 
-      {/* Feature Cards Grid Section */}
-      <section id="features" className="max-w-7xl mx-auto px-6 py-20 border-t border-slate-200 dark:border-slate-900">
-        <div className="text-center space-y-4 mb-16">
-          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white sm:text-4xl">
-            Designed for execution, not just scheduling
-          </h2>
-          <p className="text-slate-600 dark:text-slate-400 max-w-xl mx-auto text-base">
-            Reminders don't solve procrastination. Dynamic, context-aware assistance does. Meet our core AI features.
-          </p>
-        </div>
+      {/* EXPORT OPTIONS MODAL */}
+      <AnimatePresence>
+        {exportModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-slate-800 border border-slate-205 dark:border-slate-705 rounded-2xl p-6 max-w-xl w-full space-y-6 shadow-2xl relative text-left"
+            >
+              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-3">
+                <h3 className="font-extrabold text-slate-900 dark:text-white text-lg flex items-center gap-2">
+                  <Download className="w-5 h-5 text-blue-600" />
+                  Developer Export Formats
+                </h3>
+                <button 
+                  onClick={() => setExportModalOpen(false)}
+                  className="text-xs font-bold text-slate-400 hover:text-slate-655"
+                >
+                  Close
+                </button>
+              </div>
 
-        <motion.div 
-          className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8"
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-100px" }}
-        >
-          {/* Card 1 */}
-          <motion.div variants={itemVariants} className="glass-card p-6 rounded-2xl border border-white/20 dark:border-slate-950 flex flex-col justify-between hover:translate-y-[-4px] hover:shadow-lg transition-all duration-300">
+              {/* Format selection */}
+              <div className="flex flex-wrap gap-2 border-b border-slate-100 dark:border-slate-700 pb-4">
+                {[
+                  { id: "markdown", label: "Markdown (.md)" },
+                  { id: "json", label: "JSON Raw" },
+                  { id: "notion", label: "Notion (CSV)" },
+                  { id: "trello", label: "Trello Board" },
+                  { id: "jira", label: "Jira / CSV" },
+                  { id: "github_issues", label: "GitHub Issues" }
+                ].map((f, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setExportFormat(f.id as any)}
+                    className={`text-xs font-bold px-3.5 py-2 rounded-xl border transition-all cursor-pointer ${
+                      exportFormat === f.id 
+                        ? "bg-blue-600 border-blue-600 text-white shadow-sm" 
+                        : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-350"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Content Preview */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Preview Export Content</label>
+                <textarea 
+                  readOnly 
+                  value={getExportContent()} 
+                  className="w-full h-60 bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-750 rounded-xl p-3.5 text-[10px] font-mono leading-normal focus:outline-none text-slate-700 dark:text-slate-300"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-between items-center pt-2">
+                <button 
+                  onClick={handleCopyClipboard}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border border-blue-100 dark:border-blue-800 hover:bg-blue-105/50 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                >
+                  <Copy className="w-4 h-4" />
+                  {copySuccess ? "Copied!" : "Copy to Clipboard"}
+                </button>
+                <button 
+                  onClick={handleDownloadFile}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 dark:bg-blue-600 hover:bg-slate-800 dark:hover:bg-blue-750 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  Download File
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Features Section */}
+      <section id="features" className="max-w-6xl mx-auto px-6 py-24 border-t border-slate-200 dark:border-slate-800">
+        <div className="grid md:grid-cols-3 gap-8">
+          <div className="border border-slate-200 dark:border-slate-800 p-6 rounded-2xl bg-white dark:bg-slate-800 hover:border-blue-350 transition-all text-left">
             <div className="space-y-4">
-              <span className="p-3 rounded-xl bg-accent-500/10 text-accent-600 dark:bg-accent-500/5 dark:text-accent-400 inline-flex">
-                <BrainCircuit className="w-6 h-6" />
+              <span className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 inline-flex border border-blue-100 dark:border-blue-800/40">
+                <BookOpen className="w-6 h-6" />
               </span>
-              <h3 className="text-lg font-bold text-slate-950 dark:text-white">AI Task Breakdown</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                Break complex goals down into immediate tasks with time estimates, difficulty rank, and step-by-step guidance automatically.
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Project Analysis</h3>
+              <p className="text-sm text-slate-650 dark:text-slate-400 leading-relaxed">
+                Analyzes industry categories, workflows, target users, security requirements, and scalability bottlenecks dynamically.
               </p>
             </div>
-          </motion.div>
+          </div>
 
-          {/* Card 2 */}
-          <motion.div variants={itemVariants} className="glass-card p-6 rounded-2xl border border-white/20 dark:border-slate-950 flex flex-col justify-between hover:translate-y-[-4px] hover:shadow-lg transition-all duration-300">
+          <div className="border border-slate-200 dark:border-slate-800 p-6 rounded-2xl bg-white dark:bg-slate-800 hover:border-blue-350 transition-all text-left">
             <div className="space-y-4">
-              <span className="p-3 rounded-xl bg-violet-500/10 text-violet-600 dark:bg-violet-500/5 dark:text-violet-400 inline-flex">
+              <span className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 inline-flex border border-blue-100 dark:border-blue-800/40">
+                <Map className="w-6 h-6" />
+              </span>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Roadmap Generation</h3>
+              <p className="text-sm text-slate-650 dark:text-slate-400 leading-relaxed">
+                Generates detailed implementation tasks and weekly sprints, avoiding generic guidelines.
+              </p>
+            </div>
+          </div>
+
+          <div className="border border-slate-200 dark:border-slate-800 p-6 rounded-2xl bg-white dark:bg-slate-800 hover:border-blue-350 transition-all text-left">
+            <div className="space-y-4">
+              <span className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 inline-flex border border-blue-100 dark:border-blue-800/40">
                 <Clock className="w-6 h-6" />
               </span>
-              <h3 className="text-lg font-bold text-slate-950 dark:text-white">Smart Prioritization</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                Sort lists automatically based on real metrics: deadline closeness, task dependencies, effort estimation, and user history.
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Cost & Deployment Planner</h3>
+              <p className="text-sm text-slate-650 dark:text-slate-400 leading-relaxed">
+                Provides development costs, hour distributions, environment variables lists, and scaling guidelines.
               </p>
-            </div>
-          </motion.div>
-
-          {/* Card 3 */}
-          <motion.div variants={itemVariants} className="glass-card p-6 rounded-2xl border border-white/20 dark:border-slate-950 flex flex-col justify-between hover:translate-y-[-4px] hover:shadow-lg transition-all duration-300">
-            <div className="space-y-4">
-              <span className="p-3 rounded-xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/5 dark:text-emerald-400 inline-flex">
-                <Sparkles className="w-6 h-6" />
-              </span>
-              <h3 className="text-lg font-bold text-slate-950 dark:text-white">Context Reminders</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                Receive natural, smart reminders matching your free blocks. "You have 2 hours before dinner. Tackle research now."
-              </p>
-            </div>
-          </motion.div>
-
-          {/* Card 4 */}
-          <motion.div variants={itemVariants} className="glass-card p-6 rounded-2xl border border-white/20 dark:border-slate-950 flex flex-col justify-between hover:translate-y-[-4px] hover:shadow-lg transition-all duration-300">
-            <div className="space-y-4">
-              <span className="p-3 rounded-xl bg-amber-500/10 text-amber-600 dark:bg-amber-500/5 dark:text-amber-400 inline-flex">
-                <Flame className="w-6 h-6" />
-              </span>
-              <h3 className="text-lg font-bold text-slate-950 dark:text-white">Weekly Review Synthesis</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                Get custom reports highlighting achievements, weak links, focus streaks, and actionable recommendations to perform better.
-              </p>
-            </div>
-          </motion.div>
-        </motion.div>
-      </section>
-
-      {/* How It Works Section */}
-      <section id="how-it-works" className="bg-slate-100/50 dark:bg-slate-900/30 py-20 border-t border-b border-slate-200 dark:border-slate-900">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center space-y-4 mb-16">
-            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white sm:text-4xl">
-              Four steps to momentum
-            </h2>
-            <p className="text-slate-600 dark:text-slate-400 max-w-xl mx-auto text-base">
-              The road to getting work finished has never been simpler.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-4 gap-8 relative">
-            {/* Step 1 */}
-            <div className="space-y-4 relative">
-              <div className="w-10 h-10 rounded-full bg-accent-600 text-white font-bold flex items-center justify-center text-sm shadow-md">
-                1
-              </div>
-              <h3 className="text-lg font-bold text-slate-950 dark:text-white">Sign In & Connect</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                Log in via Google or Email in seconds. Give access to basic calendars.
-              </p>
-            </div>
-
-            {/* Step 2 */}
-            <div className="space-y-4 relative">
-              <div className="w-10 h-10 rounded-full bg-accent-600/80 text-white font-bold flex items-center justify-center text-sm shadow-md">
-                2
-              </div>
-              <h3 className="text-lg font-bold text-slate-950 dark:text-white">Input Your Goals</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                Add projects, homework, or checklists. Speak them directly using our Voice Assistant.
-              </p>
-            </div>
-
-            {/* Step 3 */}
-            <div className="space-y-4 relative">
-              <div className="w-10 h-10 rounded-full bg-accent-600/60 text-white font-bold flex items-center justify-center text-sm shadow-md">
-                3
-              </div>
-              <h3 className="text-lg font-bold text-slate-950 dark:text-white">Execute Focus Blocks</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                Enter Pomodoro Focus Mode. Block distracting browser sites automatically.
-              </p>
-            </div>
-
-            {/* Step 4 */}
-            <div className="space-y-4 relative">
-              <div className="w-10 h-10 rounded-full bg-accent-600/40 text-white font-bold flex items-center justify-center text-sm shadow-md">
-                4
-              </div>
-              <h3 className="text-lg font-bold text-slate-950 dark:text-white">Review & Improve</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                Receive weekly productivity summaries and personalized tips generated by Gemini.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section id="testimonials" className="max-w-7xl mx-auto px-6 py-20">
-        <div className="text-center space-y-4 mb-16">
-          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white sm:text-4xl">
-            Success Stories
-          </h2>
-          <p className="text-slate-600 dark:text-slate-400 max-w-xl mx-auto text-base">
-            See how professionals and students unlock their full potential with Momentum AI.
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="glass-card p-6 rounded-2xl border border-white/20 dark:border-slate-950 relative flex flex-col justify-between">
-            <p className="text-sm text-slate-600 dark:text-slate-400 italic mb-6 leading-relaxed">
-              "The subtask breakdowns are scarily accurate. Entering 'Launch new marketing campaign' created specific steps I hadn't even thought of. I finished the campaign 3 days early."
-            </p>
-            <div className="flex items-center gap-3 border-t border-slate-200 dark:border-slate-800 pt-4">
-              <div className="w-10 h-10 rounded-full bg-accent-100 dark:bg-accent-950 flex items-center justify-center text-accent-700 dark:text-accent-400 font-bold text-sm">
-                SB
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white">Sarah Brown</h4>
-                <p className="text-xs text-slate-400">Marketing Lead</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-card p-6 rounded-2xl border border-white/20 dark:border-slate-950 relative flex flex-col justify-between">
-            <p className="text-sm text-slate-600 dark:text-slate-400 italic mb-6 leading-relaxed">
-              "As a student juggling coursework and a part-time job, my biggest issue was starting. The context-aware notifications are amazing—they prompt me precisely when I actually have time."
-            </p>
-            <div className="flex items-center gap-3 border-t border-slate-200 dark:border-slate-800 pt-4">
-              <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-950 flex items-center justify-center text-indigo-700 dark:text-indigo-400 font-bold text-sm">
-                JM
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white">Jason Miller</h4>
-                <p className="text-xs text-slate-400">Computer Science Student</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-card p-6 rounded-2xl border border-white/20 dark:border-slate-950 relative flex flex-col justify-between">
-            <p className="text-sm text-slate-600 dark:text-slate-400 italic mb-6 leading-relaxed">
-              "The weekly analysis helped me realize my focus drops significantly on Thursday afternoons. The AI suggested taking short walks and rescheduled heavy coding to Fridays. Brilliant tool!"
-            </p>
-            <div className="flex items-center gap-3 border-t border-slate-200 dark:border-slate-800 pt-4">
-              <div className="w-10 h-10 rounded-full bg-violet-100 dark:bg-violet-950 flex items-center justify-center text-violet-700 dark:text-violet-400 font-bold text-sm">
-                AL
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white">Alice Lim</h4>
-                <p className="text-xs text-slate-400">Senior UX Designer</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ Section */}
-      <section id="faq" className="max-w-4xl mx-auto px-6 py-20 border-t border-slate-200 dark:border-slate-900">
-        <div className="text-center space-y-4 mb-16">
-          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white">
-            Frequently Asked Questions
-          </h2>
-        </div>
-
-        <div className="space-y-4">
-          {faqData.map((item, index) => (
-            <div 
-              key={index} 
-              className="glass-card border border-slate-250 dark:border-slate-850 rounded-2xl overflow-hidden"
-            >
-              <button
-                className="w-full text-left p-6 font-semibold flex items-center justify-between text-slate-900 dark:text-white focus:outline-none"
-                onClick={() => setActiveFaq(activeFaq === index ? null : index)}
-              >
-                <span>{item.question}</span>
-                <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-300 ${activeFaq === index ? 'rotate-180' : ''}`} />
-              </button>
-              
-              <AnimatePresence initial={false}>
-                {activeFaq === index && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <div className="p-6 pt-0 text-sm leading-relaxed text-slate-600 dark:text-slate-400 border-t border-slate-200/50 dark:border-slate-850/50">
-                      {item.answer}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="max-w-7xl mx-auto px-6 pb-24">
-        <div className="bg-gradient-to-tr from-accent-600 via-blue-600 to-indigo-700 text-white rounded-3xl p-12 text-center relative overflow-hidden shadow-2xl">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15),transparent_50%)]" />
-          <div className="max-w-2xl mx-auto space-y-6 relative z-10">
-            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-              Ready to build momentum?
-            </h2>
-            <p className="text-blue-100 text-base leading-relaxed">
-              Join thousands of professionals and students who are completing work, beating deadlines, and building long-lasting routines.
-            </p>
-            <div className="pt-4">
-              <Link 
-                to="/signup" 
-                className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-accent-700 font-semibold px-8 py-4 rounded-xl shadow-lg transition-all text-base"
-              >
-                Get Started Free <ArrowRight className="w-5 h-5" />
-              </Link>
             </div>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 dark:border-slate-900 bg-white/30 dark:bg-slate-950/30 py-12">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6 text-sm text-slate-500 dark:text-slate-400">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-accent-600 text-white flex items-center justify-center">
-              <Zap className="w-4 h-4 fill-white" />
-            </span>
-            <span className="font-bold text-slate-900 dark:text-white">
-              Momentum<span className="text-accent-600">AI</span>
-            </span>
-          </div>
-          <div className="flex gap-6">
-            <a href="#features" className="hover:text-accent-600 dark:hover:text-accent-400">Features</a>
-            <a href="#how-it-works" className="hover:text-accent-600 dark:hover:text-accent-400">How It Works</a>
-            <a href="#faq" className="hover:text-accent-600 dark:hover:text-accent-400">FAQ</a>
-          </div>
-          <div>
-            &copy; {new Date().getFullYear()} Momentum AI. All rights reserved.
-          </div>
+      <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-8">
+        <div className="max-w-6xl mx-auto px-6 text-center text-sm text-slate-500 dark:text-slate-400">
+          &copy; {new Date().getFullYear()} Momentum AI. All rights reserved.
         </div>
       </footer>
     </div>

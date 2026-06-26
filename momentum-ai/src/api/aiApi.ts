@@ -8,10 +8,16 @@ import type {
 } from "../types/ai";
 
 export const aiApi = {
-  breakdown: (title: string, token?: string) =>
+  breakdown: (title: string, projectType: string, difficulty: string, techStack?: string, token?: string) =>
     apiClient<BreakdownResponse>("/api/ai/breakdown", {
       method: "POST",
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({ title, projectType, difficulty, techStack }),
+      authToken: token,
+    }),
+  refine: (currentBlueprint: BreakdownResponse, refinementPrompt: string, token?: string) =>
+    apiClient<BreakdownResponse>("/api/ai/refine", {
+      method: "POST",
+      body: JSON.stringify({ currentBlueprint, refinementPrompt }),
       authToken: token,
     }),
   prioritize: (tasks: { id: string; title: string; dueDate?: string; priority: string }[], token?: string) =>

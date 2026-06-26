@@ -1,22 +1,40 @@
 import type { Request, Response, NextFunction } from "express";
 import { generateJSON } from "../services/geminiService";
 import { taskBreakdownPrompt } from "../prompts/taskBreakdown.prompt";
+import { taskRefinementPrompt } from "../prompts/refinement.prompt";
 import { prioritizationPrompt } from "../prompts/prioritization.prompt";
 import { schedulingPrompt } from "../prompts/scheduling.prompt";
 import { weeklyReviewPrompt } from "../prompts/weeklyReview.prompt";
 import { coachPrompt, defaultCoachPrompt } from "../prompts/coach.prompt";
 
 // POST /api/ai/breakdown
-// Expects: { title: string }
+// Expects: { title: string, projectType: string, difficulty: string, techStack?: string }
 export async function handleBreakdown(req: Request, res: Response, next: NextFunction) {
-  const { title } = req.body;
-  if (!title) {
-    return res.status(400).json({ error: "Missing required property: title" });
+  const { title, projectType, difficulty, techStack } = req.body;
+  if (!title || !projectType || !difficulty) {
+    return res.status(400).json({ error: "Missing required properties: title, projectType, and difficulty are required." });
   }
 
   try {
-    const prompt = taskBreakdownPrompt(title);
+    const prompt = taskBreakdownPrompt(title, projectType, difficulty, techStack);
     const result = await generateJSON<any>(prompt, "breakdown");
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+// POST /api/ai/refine
+// Expects: { currentBlueprint: object, refinementPrompt: string }
+export async function handleRefine(req: Request, res: Response, next: NextFunction) {
+  const { currentBlueprint, refinementPrompt } = req.body;
+  if (!currentBlueprint || !refinementPrompt) {
+    return res.status(400).json({ error: "Missing required properties: currentBlueprint and refinementPrompt are required." });
+  }
+
+  try {
+    const prompt = taskRefinementPrompt(JSON.stringify(currentBlueprint, null, 2), refinementPrompt);
+    const result = await generateJSON<any>(prompt, "refine");
     res.json(result);
   } catch (error) {
     next(error);
