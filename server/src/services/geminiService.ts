@@ -569,7 +569,7 @@ function buildMockBlueprint(taskTitle: string, projectType: string, difficultyIn
   let phases: any[] = mockPhases.map((phaseName, index) => {
     let goal = `Initialize ${domainWord} ${phaseName.toLowerCase()} configurations.`;
     let duration = "2 Weeks";
-    let priority = "Medium" as const;
+    let priority: "High" | "Medium" | "Low" = "Medium";
     let weight = 15;
     let estimatedHours = 20;
 

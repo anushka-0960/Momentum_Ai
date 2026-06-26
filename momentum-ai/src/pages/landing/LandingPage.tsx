@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
 import { 
   Zap, 
   BookOpen, 
@@ -10,13 +12,11 @@ import {
   AlertCircle, 
   ShieldAlert, 
   ListTodo, 
-  PlusCircle, 
   GraduationCap, 
   TrendingUp, 
   CheckCircle2, 
   CheckCircle,
   Database,
-  Lock,
   Server,
   Layers,
   HelpCircle,
@@ -37,7 +37,7 @@ import {
   FolderOpen
 } from "lucide-react";
 import { aiApi } from "../../api/aiApi";
-import type { BreakdownResponse, BreakdownPhase, FolderNode } from "../../types/ai";
+import type { BreakdownResponse, FolderNode } from "../../types/ai";
 
 const PHASE_EMOJIS: Record<string, string> = {
   "Planning": "📋",
@@ -138,6 +138,7 @@ const SVG_NODE_POSITIONS: Record<string, { x: number; y: number }> = {
 };
 
 export default function LandingPage() {
+  const { user } = useAuth();
   // Theme & layout states
   const [darkMode, setDarkMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -382,7 +383,7 @@ export default function LandingPage() {
     }));
   };
 
-  const getNodePosition = (id: string, index: number, total: number) => {
+  const getNodePosition = (id: string, index: number, _total: number) => {
     if (SVG_NODE_POSITIONS[id]) return SVG_NODE_POSITIONS[id];
     return {
       x: 50 + (index % 3) * 115,
@@ -416,27 +417,7 @@ export default function LandingPage() {
     }).filter(p => p.shouldInclude);
   };
 
-  // Framer Motion animation setups
-  const listContainerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.08 }
-    }
-  };
 
-  const cardVariants = {
-    hidden: { opacity: 0, y: 15 },
-    show: { 
-      opacity: 1, 
-      y: 0, 
-      transition: { 
-        type: "spring", 
-        stiffness: 85,
-        damping: 15
-      } 
-    }
-  };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans antialiased transition-colors duration-300">
@@ -453,12 +434,21 @@ export default function LandingPage() {
             </span>
           </div>
           
-          <div className="flex items-center gap-6 text-sm font-semibold text-slate-600 dark:text-slate-350">
+          <div className="flex items-center gap-6 text-sm font-semibold text-slate-650 dark:text-slate-350">
             <a href="#" className="hover:text-blue-600 transition-colors">Home</a>
             <a href="#features" className="hover:text-blue-600 transition-colors">Features</a>
+            {user ? (
+              <Link to="/dashboard" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shadow-sm">
+                Go to Dashboard
+              </Link>
+            ) : (
+              <Link to="/signin" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shadow-sm">
+                Sign In
+              </Link>
+            )}
             <button 
               onClick={() => setDarkMode(!darkMode)}
-              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400"
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center"
               aria-label="Toggle dark mode"
             >
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -948,7 +938,6 @@ export default function LandingPage() {
                         const isGet = api.method === "GET";
                         const isPost = api.method === "POST";
                         const isDelete = api.method === "DELETE";
-                        const isPut = api.method === "PUT" || api.method === "PATCH";
                         const methodColor = isGet 
                           ? "bg-emerald-500" 
                           : isPost 

@@ -8,12 +8,41 @@ import type {
 } from "../types/ai";
 
 export const aiApi = {
-  breakdown: (title: string, projectType: string, difficulty: string, techStack?: string, token?: string) =>
-    apiClient<BreakdownResponse>("/api/ai/breakdown", {
+  breakdown: (
+    title: string,
+    projectTypeOrToken?: string,
+    difficulty?: string,
+    techStack?: string,
+    token?: string
+  ) => {
+    let resolvedProjectType = "Web App";
+    let resolvedDifficulty = "Intermediate";
+    let resolvedTechStack = techStack;
+    let resolvedToken = token;
+
+    if (projectTypeOrToken) {
+      if (projectTypeOrToken.includes(".") || projectTypeOrToken.length > 50) {
+        resolvedToken = projectTypeOrToken;
+      } else {
+        resolvedProjectType = projectTypeOrToken;
+      }
+    }
+
+    if (difficulty) {
+      resolvedDifficulty = difficulty;
+    }
+
+    return apiClient<BreakdownResponse>("/api/ai/breakdown", {
       method: "POST",
-      body: JSON.stringify({ title, projectType, difficulty, techStack }),
-      authToken: token,
-    }),
+      body: JSON.stringify({
+        title,
+        projectType: resolvedProjectType,
+        difficulty: resolvedDifficulty,
+        techStack: resolvedTechStack,
+      }),
+      authToken: resolvedToken,
+    });
+  },
   refine: (currentBlueprint: BreakdownResponse, refinementPrompt: string, token?: string) =>
     apiClient<BreakdownResponse>("/api/ai/refine", {
       method: "POST",

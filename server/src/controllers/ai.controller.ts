@@ -10,9 +10,9 @@ import { coachPrompt, defaultCoachPrompt } from "../prompts/coach.prompt";
 // POST /api/ai/breakdown
 // Expects: { title: string, projectType: string, difficulty: string, techStack?: string }
 export async function handleBreakdown(req: Request, res: Response, next: NextFunction) {
-  const { title, projectType, difficulty, techStack } = req.body;
-  if (!title || !projectType || !difficulty) {
-    return res.status(400).json({ error: "Missing required properties: title, projectType, and difficulty are required." });
+  const { title, projectType = "Web App", difficulty = "Intermediate", techStack } = req.body;
+  if (!title) {
+    return res.status(400).json({ error: "Missing required property: title is required." });
   }
 
   try {
